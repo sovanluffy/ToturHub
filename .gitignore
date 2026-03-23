@@ -1,0 +1,77 @@
+####################################
+# Maven
+####################################
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+####################################
+# Environment Variables (IMPORTANT)
+####################################
+.env
+.env.*
+!.env.example
+
+####################################
+# Spring Boot Config
+####################################
+application-local.yml
+application-dev.yml
+application-prod.yml
+!application.yml
+
+####################################
+# STS (Spring Tool Suite)
+####################################
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+####################################
+# IntelliJ IDEA
+####################################
+.idea
+*.iws
+*.iml
+*.ipr
+
+####################################
+# NetBeans
+####################################
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+####################################
+# VS Code
+####################################
+.vscode/
+
+####################################
+# OS Files
+####################################
+.DS_Store
+Thumbs.db
+
+####################################
+# Logs
+####################################
+*.log
+
+####################################
+# Docker
+####################################
+docker-compose.override.yml
+.env
+src/main/resources/application.properties
