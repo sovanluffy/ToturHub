@@ -12,7 +12,6 @@ import com.rental_api.ServiceBooking.Repository.UserRepository;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 import com.rental_api.ServiceBooking.Services.GoogleOAuthService;
-import com.rental_api.ServiceBooking.Dto.GoogleUserInfo;
 import com.rental_api.ServiceBooking.Security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +36,6 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final CloudinaryService cloudinaryService;
-    private final GoogleOAuthService googleOAuthService;
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"

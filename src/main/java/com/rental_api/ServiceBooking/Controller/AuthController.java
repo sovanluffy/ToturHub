@@ -32,7 +32,7 @@ public class AuthController {
     private final GoogleOAuthService googleOAuthService;
     private final UserService userService;
 
-    // 1. GET /auth/me - Get current user profile
+    // 1. GET /auth/me - Get current user profile (WITH PHONE SUPPORT)
     @GetMapping("/me")
     @Operation(summary = "Get current profile")
     public ResponseEntity<?> getMe() {
@@ -41,11 +41,13 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
+        // auth.getName() usually returns the email (the username in UserDetails)
         return userService.getUserByEmail(auth.getName())
                 .map(user -> ResponseEntity.ok(Map.of(
                         "userId", user.getId(),
                         "fullname", user.getFullname(),
                         "email", user.getEmail(),
+                        "phone", user.getPhone() != null ? user.getPhone() : "", // Added Phone
                         "avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
                         "roles", user.getRoles().stream().map(Role::getName).collect(Collectors.toList()),
                         "status", user.getStatus()
@@ -53,14 +55,21 @@ public class AuthController {
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
-    // 2. GET /auth/google - Google OAuth Callback (THE ONLY ONE)
+    // 2. GET /auth/google - Google OAuth Callback
     @GetMapping("/google")
     @Operation(summary = "Google Login")
     public ResponseEntity<AuthResponse> loginWithGoogle(@RequestParam("code") String code) {
         return ResponseEntity.ok(googleOAuthService.loginWithGoogle(code));
     }
 
-    // 3. POST /auth/register
+    // 3. POST /auth/facebook - Facebook OAuth Callback
+    @PostMapping("/facebook")
+    @Operation(summary = "Facebook Login", description = "Exchange Facebook access token for JWT")
+    public ResponseEntity<AuthResponse> loginWithFacebook(@RequestParam("accessToken") String accessToken) {
+        return ResponseEntity.ok(googleOAuthService.loginWithFacebook(accessToken));
+    }
+
+    // 4. POST /auth/register
     @PostMapping(value = "/register", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     public ResponseEntity<AuthResponse> registerStudent(
             @RequestPart("data") RegisterRequest request,
@@ -68,7 +77,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.register(request, avatar));
     }
 
-    // 4. POST /auth/login
+    // 5. POST /auth/login
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));

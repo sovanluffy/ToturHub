@@ -34,10 +34,16 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status = Status.ACTIVE; // default ACTIVE for students
+    @Builder.Default
+    private Status status = Status.ACTIVE; 
 
+    // --- FIX: Added INACTIVE and DELETED here ---
     public enum Status {
-        ACTIVE, PENDING, REJECTED
+        ACTIVE, 
+        PENDING, 
+        REJECTED, 
+        INACTIVE,   // This fixes the Service error
+        DELETED     // For future account deletions
     }
 
     @ManyToMany(fetch = FetchType.EAGER)
@@ -58,21 +64,27 @@ public class User implements UserDetails {
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName()))
                 .collect(Collectors.toSet());
     }
-
+    
     @Override
     public String getUsername() {
-        return this.email; // use email as username
+        return this.email; 
     }
 
     @Override
     public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isAccountNonLocked() { return true; }
+    public boolean isAccountNonLocked() { 
+        // Logic fix: A user is only "Non-Locked" if their status isn't REJECTED or INACTIVE
+        return this.status != Status.REJECTED && this.status != Status.INACTIVE; 
+    }
 
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { 
+        // Logic fix: Only allow login if the user is ACTIVE
+        return this.status == Status.ACTIVE; 
+    }
 }

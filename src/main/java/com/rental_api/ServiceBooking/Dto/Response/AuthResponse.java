@@ -12,6 +12,7 @@ public class AuthResponse {
     private Long userId;
     private String fullname;
     private String email;
+    private String phone;     // Added this field
     private String avatarUrl;
     private String message;
     private String token;
