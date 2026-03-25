@@ -40,7 +40,7 @@ public class OpenClassController {
     }
 
     /**
-     * VIEW SINGLE CLASS DETAILS:
+     * VIEW SINGLE CLASS DETAI
      * When a student clicks a specific post to see 
      * the Tutor's ratings, full bio, and available time slots.
      */
