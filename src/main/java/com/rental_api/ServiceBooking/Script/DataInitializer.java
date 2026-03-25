@@ -42,7 +42,8 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         // Check if admin already exists
         if (userRepository.findByEmail(adminEmail).isEmpty()) {
-            // Get admin role
+
+            // Get or create admin role
             Role adminRole = roleRepository.findByName("admin")
                     .orElseGet(() -> {
                         Role role = new Role();
@@ -50,15 +51,19 @@ public class DataInitializer implements CommandLineRunner {
                         return roleRepository.save(role);
                     });
 
+            // Generate username from email (everything before @)
+            String username = adminEmail.contains("@") ? adminEmail.substring(0, adminEmail.indexOf("@")) : "admin";
+
             // Create admin user
             User admin = User.builder()
                     .fullname(adminFullname)
+                    .username(username) // <-- fixed: ensure NOT NULL
                     .email(adminEmail)
                     .password(passwordEncoder.encode(adminPassword))
                     .phone(adminPhone)
                     .address(adminAddress)
                     .location(adminLocation)
-                    .status(User.Status.ACTIVE)
+                    .status(User.Status.ACTIVE) // enum ACTIVE
                     .roles(Set.of(adminRole))
                     .build();
 

@@ -38,7 +38,7 @@ public class SecurityConfiguration {
                 // OPTIONS preflight for CORS
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // ✅ Public endpoints: register & login
+                // ✅ Public endpoints: register, login, & Swagger
                 .requestMatchers(
                         "/api/auth/**",
                         "/auth/**",
@@ -52,22 +52,26 @@ public class SecurityConfiguration {
                         "/webjars/**"
                 ).permitAll()
 
-                // Admin-only endpoints
-                .requestMatchers("/api/categories/**").hasRole("ADMIN")
-                .requestMatchers("/users/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/provider-requests/all").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/provider-requests/*/status").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/bookings/all").hasRole("ADMIN")
+                // ✅ NEW: Public Tutor endpoints (Anyone can see the list)
+                .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
 
-                // Customer endpoints
-                .requestMatchers(HttpMethod.POST, "/api/services/*/bookings").hasRole("CUSTOMER")
-                .requestMatchers(HttpMethod.GET, "/api/bookings/my").hasRole("CUSTOMER")
+                // ✅ Admin-only endpoints (Small role 'admin')
+                .requestMatchers("/api/v1/admin/**").hasRole("admin") // New Admin logic
+                .requestMatchers("/api/categories/**").hasRole("admin")
+                .requestMatchers("/users/**").hasRole("admin")
+                .requestMatchers(HttpMethod.GET, "/provider-requests/all").hasRole("admin")
+                .requestMatchers(HttpMethod.PUT, "/provider-requests/*/status").hasRole("admin")
+                .requestMatchers(HttpMethod.GET, "/api/bookings/all").hasRole("admin")
 
-                // Provider endpoints
-                .requestMatchers(HttpMethod.PUT, "/api/bookings/*/accept").hasRole("PROVIDER")
-                .requestMatchers(HttpMethod.PUT, "/api/bookings/*/reject").hasRole("PROVIDER")
+                // ✅ NEW: Tutor endpoints (Small role 'tutor')
+                .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/tutors/**").hasRole("tutor")
+                
+                // ✅ Student/Customer endpoints (Small role 'student')
+                .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
+                .requestMatchers(HttpMethod.GET, "/api/bookings/my").hasAnyRole("student", "tutor")
 
-                // Authenticated for all other endpoints
+                // Legacy logic (Preserved from your code)
                 .requestMatchers("/api/services/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/provider-requests/request").authenticated()
 
@@ -78,7 +82,6 @@ public class SecurityConfiguration {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authenticationProvider(authenticationProvider)
-            // JWT filter must be after permitAll checks
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
@@ -88,7 +91,7 @@ public class SecurityConfiguration {
         return http.build();
     }
 
-    // ------------------- CORS -------------------
+    // ------------------- CORS (Preserved as is) -------------------
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
