@@ -11,7 +11,6 @@ import com.rental_api.ServiceBooking.Repository.RoleRepository;
 import com.rental_api.ServiceBooking.Repository.UserRepository;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
-import com.rental_api.ServiceBooking.Services.GoogleOAuthService;
 import com.rental_api.ServiceBooking.Security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +40,7 @@ public class AuthServiceImpl implements AuthService {
             "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
     );
 
-    // ------------------- REGISTER STUDENT -------------------
+    // ------------------- REGISTER -------------------
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request, MultipartFile avatar) {
@@ -61,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
                 .phone(request.getPhone())
                 .address(request.getAddress())
                 .location(request.getLocation())
-                .avatarUrl(avatarUrl)
+                .avatarUrl(avatarUrl) // <- avatar saved here
                 .status(User.Status.ACTIVE)
                 .build();
 
@@ -126,22 +125,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
     }
 
-    // ------------------- UPLOAD AVATAR -------------------
-    @Override
-    @Transactional
-    public AuthResponse uploadAvatar(Long userId, MultipartFile file) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        String avatarUrl = cloudinaryService.uploadFile(file);
-        user.setAvatarUrl(avatarUrl);
-        userRepository.save(user);
-
-        return buildAuthResponse(user, "Avatar uploaded successfully");
-    }
-
-    
-    // ------------------- PRIVATE HELPERS -------------------
+    // ------------------- HELPERS -------------------
     private void validateEmail(String email) {
         if (!EMAIL_PATTERN.matcher(email).matches())
             throw new ConflictException("Invalid email format");

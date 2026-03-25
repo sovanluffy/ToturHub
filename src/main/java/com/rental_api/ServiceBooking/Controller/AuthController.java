@@ -3,83 +3,62 @@ package com.rental_api.ServiceBooking.Controller;
 import com.rental_api.ServiceBooking.Dto.Request.LoginRequest;
 import com.rental_api.ServiceBooking.Dto.Request.RegisterRequest;
 import com.rental_api.ServiceBooking.Dto.Response.AuthResponse;
-import com.rental_api.ServiceBooking.Entity.Role;
 import com.rental_api.ServiceBooking.Services.AuthService;
-import com.rental_api.ServiceBooking.Services.GoogleOAuthService;
-import com.rental_api.ServiceBooking.Services.UserService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Map;
-import java.util.stream.Collectors;
+import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name = "Auth", description = "Authentication and User APIs")
-@CrossOrigin(origins = "http://127.0.0.1:5500") 
 public class AuthController {
 
     private final AuthService authService;
-    private final GoogleOAuthService googleOAuthService;
-    private final UserService userService;
 
-    // 1. GET /auth/me - Get current user profile (WITH PHONE SUPPORT)
-    @GetMapping("/me")
-    @Operation(summary = "Get current profile")
-    public ResponseEntity<?> getMe() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+    // ------------------- REGISTER WITH AVATAR -------------------
+    @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<AuthResponse> register(
+            @RequestPart("user") @Valid String userJson,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar
+    ) throws Exception {
 
-        // auth.getName() usually returns the email (the username in UserDetails)
-        return userService.getUserByEmail(auth.getName())
-                .map(user -> ResponseEntity.ok(Map.of(
-                        "userId", user.getId(),
-                        "fullname", user.getFullname(),
-                        "email", user.getEmail(),
-                        "phone", user.getPhone() != null ? user.getPhone() : "", // Added Phone
-                        "avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
-                        "roles", user.getRoles().stream().map(Role::getName).collect(Collectors.toList()),
-                        "status", user.getStatus()
-                )))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+        // Deserialize JSON string to RegisterRequest
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        RegisterRequest registerRequest = mapper.readValue(userJson, RegisterRequest.class);
+
+        AuthResponse response = authService.register(registerRequest, avatar);
+        return ResponseEntity.ok(response);
     }
 
-    // 2. GET /auth/google - Google OAuth Callback
-    @GetMapping("/google")
-    @Operation(summary = "Google Login")
-    public ResponseEntity<AuthResponse> loginWithGoogle(@RequestParam("code") String code) {
-        return ResponseEntity.ok(googleOAuthService.loginWithGoogle(code));
-    }
-
-    // 3. POST /auth/facebook - Facebook OAuth Callback
-    @PostMapping("/facebook")
-    @Operation(summary = "Facebook Login", description = "Exchange Facebook access token for JWT")
-    public ResponseEntity<AuthResponse> loginWithFacebook(@RequestParam("accessToken") String accessToken) {
-        return ResponseEntity.ok(googleOAuthService.loginWithFacebook(accessToken));
-    }
-
-    // 4. POST /auth/register
-    @PostMapping(value = "/register", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-    public ResponseEntity<AuthResponse> registerStudent(
-            @RequestPart("data") RegisterRequest request,
-            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
-        return ResponseEntity.ok(authService.register(request, avatar));
-    }
-
-    // 5. POST /auth/login
+    // ------------------- LOGIN -------------------
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    // ------------------- REQUEST TUTOR -------------------
+    @PostMapping("/request-tutor/{userId}")
+    public ResponseEntity<AuthResponse> requestTutor(@PathVariable Long userId) {
+        AuthResponse response = authService.requestTutor(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    // ------------------- ADMIN APPROVE -------------------
+    @PostMapping("/approve-tutor/{userId}")
+    public ResponseEntity<Void> approveTutor(@PathVariable Long userId) {
+        authService.approveTutor(userId);
+        return ResponseEntity.ok().build();
+    }
+
+    // ------------------- ADMIN REJECT -------------------
+    @PostMapping("/reject-tutor/{userId}")
+    public ResponseEntity<Void> rejectTutor(@PathVariable Long userId) {
+        authService.rejectTutor(userId);
+        return ResponseEntity.ok().build();
     }
 }

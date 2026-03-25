@@ -7,20 +7,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface AuthService {
 
-    // ------------------- REGISTER STUDENT -------------------
-    AuthResponse register(RegisterRequest request, MultipartFile avatar); // optional avatar
+    AuthResponse register(RegisterRequest request, MultipartFile avatar);
 
-    // ------------------- LOGIN -------------------
     AuthResponse login(LoginRequest request);
 
-    // ------------------- REQUEST TUTOR -------------------
     AuthResponse requestTutor(Long userId);
 
-    // ------------------- ADMIN APPROVE / REJECT -------------------
     void approveTutor(Long userId);
+
     void rejectTutor(Long userId);
-
-    // ------------------- UPLOAD AVATAR -------------------
-    AuthResponse uploadAvatar(Long userId, MultipartFile file);
-
 }

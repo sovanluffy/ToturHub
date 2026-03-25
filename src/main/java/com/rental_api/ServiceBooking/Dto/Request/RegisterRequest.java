@@ -2,7 +2,10 @@ package com.rental_api.ServiceBooking.Dto.Request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
@@ -24,6 +27,6 @@ public class RegisterRequest {
     private String address;
     private String location;
 
-    // NEW FIELD for avatar upload
-    private String avatarUrl; // can store Cloudinary URL after upload
+    // Do NOT include avatarUrl here
+    // File upload is handled in Controller with MultipartFile
 }
