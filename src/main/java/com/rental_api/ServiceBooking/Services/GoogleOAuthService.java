@@ -12,14 +12,5 @@ public interface GoogleOAuthService {
      */
     AuthResponse loginWithGoogle(String code);
 
-    /**
-     * Processes Facebook login using the access token from the JS SDK.
-     */
-    AuthResponse loginWithFacebook(String accessToken);
-
-    /**
-     * Handles the callback when a user removes the app from their Facebook settings.
-     * This is required by Facebook's Data Deletion Policy.
-     */
-    void handleFacebookDeauthorize(String signedRequest);
+ 
 }

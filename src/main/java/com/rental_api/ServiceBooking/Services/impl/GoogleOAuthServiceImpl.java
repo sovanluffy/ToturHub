@@ -43,16 +43,6 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
     @Value("${google.redirect-uri}")
     private String googleRedirectUri;
 
-    // Facebook config
-    @Value("${facebook.client-id}")
-    private String facebookClientId;
-
-    @Value("${facebook.client-secret}")
-    private String facebookClientSecret;
-
-    @Value("${facebook.redirect-uri}")
-    private String facebookRedirectUri;
-
     // ================= GOOGLE LOGIN =================
     @Override
     public AuthResponse loginWithGoogle(String code) {
@@ -99,102 +89,16 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
             return processOAuthUser(
                     googleUser.getEmail(),
                     googleUser.getName(),
-                    googleUser.getPicture(),
-                    "Google",
-                    null
+                    googleUser.getPicture()
             );
 
         } catch (Exception e) {
-            throw new RuntimeException("Google Login Error: " + e.getMessage());
-        }
-    }
-
-    // ================= FACEBOOK LOGIN =================
-    @Override
-    public AuthResponse loginWithFacebook(String code) {
-        try {
-
-            // Exchange code for access token
-            String tokenUrl =
-                    "https://graph.facebook.com/v18.0/oauth/access_token" +
-                            "?client_id=" + facebookClientId +
-                            "&redirect_uri=" + facebookRedirectUri +
-                            "&client_secret=" + facebookClientSecret +
-                            "&code=" + code;
-
-            ResponseEntity<String> tokenResponse =
-                    restTemplate.getForEntity(tokenUrl, String.class);
-
-            JsonNode tokenJson = objectMapper.readTree(tokenResponse.getBody());
-            String accessToken = tokenJson.get("access_token").asText();
-
-            // Get Facebook user info
-            String userInfoUrl =
-                    "https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token="
-                            + accessToken;
-
-            ResponseEntity<String> userResponse =
-                    restTemplate.getForEntity(userInfoUrl, String.class);
-
-            JsonNode root = objectMapper.readTree(userResponse.getBody());
-
-            String id = root.get("id").asText();
-            String name = root.get("name").asText();
-            String picture = root.get("picture").get("data").get("url").asText();
-
-            String email = root.has("email")
-                    ? root.get("email").asText()
-                    : id + "@facebook.com";
-
-            return processOAuthUser(
-                    email,
-                    name,
-                    picture,
-                    "Facebook",
-                    null
-            );
-
-        } catch (Exception e) {
-            throw new RuntimeException("Facebook Login Error: " + e.getMessage());
-        }
-    }
-
-    // ================= FACEBOOK DEAUTHORIZE =================
-    @Override
-    public void handleFacebookDeauthorize(String signedRequest) {
-        try {
-
-            String[] parts = signedRequest.split("\\.");
-            if (parts.length < 2) {
-                throw new RuntimeException("Invalid signed request");
-            }
-
-            String encodedPayload = parts[1];
-            byte[] decodedBytes = Base64.getUrlDecoder().decode(encodedPayload);
-
-            JsonNode data = objectMapper.readTree(decodedBytes);
-
-            String fbUserId = data.get("user_id").asText();
-            String email = fbUserId + "@facebook.com";
-
-            userRepository.findByEmail(email).ifPresent(user -> {
-                user.setStatus(User.Status.INACTIVE);
-                userRepository.save(user);
-            });
-
-        } catch (Exception e) {
-            throw new RuntimeException("Facebook Deauthorize Error: " + e.getMessage());
+            throw new RuntimeException("Google Login Error: " + e.getMessage(), e);
         }
     }
 
     // ================= COMMON USER PROCESS =================
-    private AuthResponse processOAuthUser(
-            String email,
-            String name,
-            String avatar,
-            String provider,
-            String phone
-    ) {
+    private AuthResponse processOAuthUser(String email, String name, String avatar) {
 
         User user = userRepository.findByEmail(email).orElseGet(() -> {
 
@@ -206,7 +110,6 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                             .fullname(name)
                             .email(email)
                             .avatarUrl(avatar)
-                            .phone(phone)
                             .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                             .status(User.Status.ACTIVE)
                             .roles(Set.of(role))
@@ -219,13 +122,8 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
             user.setAvatarUrl(avatar);
         }
 
-        if (phone != null) {
-            user.setPhone(phone);
-        }
-
         userRepository.save(user);
 
-        // Generate roles list
         List<String> roles = user.getRoles().stream()
                 .map(Role::getName)
                 .toList();
@@ -243,10 +141,9 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                 .userId(user.getId())
                 .fullname(user.getFullname())
                 .email(user.getEmail())
-                .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
                 .token(token)
-                .message("Login success via " + provider)
+                .message("Login success via Google")
                 .build();
     }
 }
