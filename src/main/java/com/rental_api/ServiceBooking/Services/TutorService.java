@@ -1,13 +1,15 @@
 package com.rental_api.ServiceBooking.Services;
 
-import com.rental_api.ServiceBooking.Dto.Request.TutorRequestDto;
-import com.rental_api.ServiceBooking.Dto.Response.TutorResponseDto;
-import java.util.List;
+import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
+import com.rental_api.ServiceBooking.Dto.Response.TutorFullViewResponse;
 
 public interface TutorService {
-    List<TutorResponseDto> getAllTutors();
-    TutorResponseDto getTutorById(Long id);
-    TutorResponseDto createTutor(TutorRequestDto request);
-    TutorResponseDto updateTutor(Long id, TutorRequestDto request);
-    void deleteTutor(Long id);
+    // Save or Update the professional identity (Bio, Video, Education, Experience)
+    void updateTutorProfile(TutorProfileRequest request);
+
+    // Get the "See All" view: Profile + All Posted Classes + Reviews
+    TutorFullViewResponse getTutorFullDetail(Long tutorId);
+    
+    // Increment stats when a student finishes a class
+    void incrementStudentCount(Long tutorId);
 }

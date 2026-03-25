@@ -66,6 +66,9 @@ public class SecurityConfiguration {
                 // ✅ NEW: Tutor endpoints (Small role 'tutor')
                 .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/tutors/**").hasRole("tutor")
+                // Inside authorizeHttpRequests:
+.requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll() 
+.requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
                 
                 // ✅ Student/Customer endpoints (Small role 'student')
                 .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")

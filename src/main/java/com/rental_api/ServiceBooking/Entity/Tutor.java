@@ -2,51 +2,43 @@ package com.rental_api.ServiceBooking.Entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "tutors")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class Tutor {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @OneToOne
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(columnDefinition = "TEXT")
     private String bio;
+    private String profilePicture; 
+    private String introVideoUrl; // Link to intro video
+    
+    @ElementCollection
+    private List<String> certificateImages = new ArrayList<>();
 
-    @Column(name = "experience_years")
-    private Integer experienceYears;
+    // --- History Timelines ---
+    @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Education> education = new ArrayList<>();
 
-    @Column(name = "price_per_hour", precision = 10, scale = 2)
-    private BigDecimal pricePerHour;
+    @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Experience> experience = new ArrayList<>();
 
-    private String telegram;
+    // --- "Post More" Logic: One tutor can have many classes ---
+    @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL)
+    private List<OpenClass> openClasses = new ArrayList<>();
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    // --- Global Stats ---
+    private Double averageRating = 0.0;
+    private Integer totalStudentsTaught = 0;
 
-    // Relationship to Subjects (ManyToMany)
-    @ManyToMany
-    @JoinTable(
-        name = "tutor_subjects",
-        joinColumns = @JoinColumn(name = "tutor_id"),
-        inverseJoinColumns = @JoinColumn(name = "subject_id")
-    )
-    private List<Subject> subjects;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
+    @OneToMany(mappedBy = "tutor")
+    private List<Review> reviews = new ArrayList<>();
 }
