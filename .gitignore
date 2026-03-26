@@ -74,4 +74,4 @@ Thumbs.db
 ####################################
 docker-compose.override.yml
 .env
-src/main/resources/application.properties
+
