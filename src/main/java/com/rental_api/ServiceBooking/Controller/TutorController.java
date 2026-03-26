@@ -20,55 +20,55 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/tutors")
 @RequiredArgsConstructor
-@Tag(name = "Tutor Management", description = "Endpoints for professional tutor profiles and media")
+@Tag(name = "Tutor Management", description = "Endpoints for private profile management and publishing")
 public class TutorController {
 
     private final TutorService tutorService;
 
     /**
-     * UPDATE TUTOR PROFILE
-     * This endpoint consumes multipart/form-data.
-     * 'data' part contains the JSON (Bio, Education, Experience).
-     * Other parts contain the actual binary files.
+     * UPDATE PROFILE (Saves as Draft)
      */
     @PutMapping(
         value = "/profile", 
         consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
         produces = MediaType.APPLICATION_JSON_VALUE
     )
-    @Operation(
-        summary = "Update Tutor Professional Profile",
-        description = "Saves professional details (JSON) and uploads files to local storage."
-    )
+    @Operation(summary = "Update Profile", description = "Saves info but keeps it private (isPublic=false).")
     public ResponseEntity<ApiResponse<String>> updateProfile(
             @Valid @RequestPart("data") 
             @Parameter(schema = @Schema(implementation = TutorProfileRequest.class)) 
             TutorProfileRequest request,
 
-            @RequestPart(value = "profileImg", required = false) 
-            MultipartFile profileImg,
-
-            @RequestPart(value = "videoFile", required = false) 
-            MultipartFile videoFile,
-
-            @RequestPart(value = "certs", required = false) 
-            List<MultipartFile> certs
+            @RequestPart(value = "profileImg", required = false) MultipartFile profileImg,
+            @RequestPart(value = "videoFile", required = false) MultipartFile videoFile,
+            @RequestPart(value = "certs", required = false) List<MultipartFile> certs
     ) {
-        // Pass all parts to the service layer
         tutorService.updateTutorProfile(request, profileImg, videoFile, certs);
-        
-        return ResponseEntity.ok(ApiResponse.success("Tutor profile and media updated successfully!"));
+        return ResponseEntity.ok(ApiResponse.success("Profile saved successfully as draft!"));
     }
 
     /**
-     * GET TUTOR FULL DETAIL
-     * Returns the complete profile view for the frontend.
+     * ✅ NEW: PUBLISH PROFILE (The "Post" Button)
+     */
+    @PostMapping("/publish")
+    @Operation(summary = "Post to Public", description = "Set isPublic to true.")
+    public ResponseEntity<ApiResponse<String>> publish() {
+        tutorService.publishProfile();
+        return ResponseEntity.ok(ApiResponse.success("Your profile is now live!"));
+    }
+
+    @PostMapping("/unpublish")
+    @Operation(summary = "Hide Profile", description = "Set isPublic to false. You will vanish from the public list.")
+    public ResponseEntity<ApiResponse<String>> unpublish() {
+        tutorService.unpublishProfile();
+        return ResponseEntity.ok(ApiResponse.success("Your profile is now hidden."));
+    }
+
+    /**
+     * VIEW OWN FULL DETAIL
      */
     @GetMapping("/{id}/full-view")
-    @Operation(
-        summary = "Get Full Tutor Details", 
-        description = "Returns bio, local file paths, education, and experience for a specific tutor ID."
-    )
+    @Operation(summary = "Get Full View", description = "Returns full details including the isPublic status.")
     public ResponseEntity<ApiResponse<TutorFullViewResponse>> getFullTutorDetail(@PathVariable Long id) {
         TutorFullViewResponse response = tutorService.getTutorFullDetail(id);
         return ResponseEntity.ok(ApiResponse.success(response));

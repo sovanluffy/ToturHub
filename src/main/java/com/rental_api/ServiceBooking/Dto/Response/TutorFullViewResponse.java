@@ -23,7 +23,7 @@ public class TutorFullViewResponse {
 
     private Double rating;
     private Integer studentsTaught;
-
+private boolean isPublic;
     // --- History Timelines ---
     private List<EducationDto> education;
     private List<ExperienceDto> experience;

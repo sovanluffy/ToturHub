@@ -8,13 +8,24 @@ import java.util.List;
 
 public interface OpenClassService {
     
-    // Your existing method
+    /**
+     * Create a new class offering with pricing and time slots.
+     */
     OpenClassResponse createClass(OpenClassRequest request);
 
-    // --- ADD THIS LINE TO FIX THE ERROR ---
+    /**
+     * Search for all classes with status 'OPEN'. 
+     * @param city Optional filter for location (e.g., "Phnom Penh").
+     */
     List<OpenClassResponse> findAllActiveClasses(String city);
 
-    // If you implemented this in the Impl, add it here too:
+    /**
+     * Get the full details of a specific class including all available schedules.
+     */
     OpenClassResponse getClassDetails(Long id);
+
+    /**
+     * Get basic Tutor cards for the main discovery page.
+     */
     List<TutorCardResponse> getAllPublicCards();
 }

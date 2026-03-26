@@ -26,6 +26,26 @@ public class TutorServiceImpl implements TutorService {
     private final UserRepository userRepository;
     private final CloudinaryService cloudinaryService; 
 
+    /**
+     * ✅ NEW: PUBLISH PROFILE LOGIC
+     * This flips the 'isPublic' switch so the tutor card appears on the homepage.
+     */
+    @Override
+    @Transactional
+    public void publishProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found. Please save your info first."));
+        
+        // Optional: Add a check to ensure profile is complete before publishing
+        if (tutor.getProfilePicture() == null || tutor.getBio() == null) {
+            throw new RuntimeException("Cannot publish: Profile picture and bio are required.");
+        }
+
+        tutor.setPublic(true); // Assuming you added 'private boolean isPublic' to Tutor entity
+        tutorRepository.save(tutor);
+    }
+
     @Override
     @Transactional
     public void updateTutorProfile(TutorProfileRequest request, 
@@ -33,10 +53,8 @@ public class TutorServiceImpl implements TutorService {
                                    MultipartFile videoFile, 
                                    List<MultipartFile> certs) {
         
-        // 1. Identify User from Security Token
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        // 2. Find existing Tutor or create a new entry
         Tutor tutor = tutorRepository.findByUserEmail(email)
             .orElseGet(() -> {
                 User user = userRepository.findByEmail(email)
@@ -44,30 +62,28 @@ public class TutorServiceImpl implements TutorService {
                 return Tutor.builder().user(user).build();
             });
 
-        // 3. Handle Profile Image Upload
+        // 1. Handle Profile Image
         if (profileImg != null && !profileImg.isEmpty()) {
             tutor.setProfilePicture(cloudinaryService.uploadFile(profileImg));
         }
 
-        // 4. Initialize Media and fix Database Constraints (media_type and url)
+        // 2. Handle Media & DB Constraints
         TutorMedia media = tutor.getMedia();
         if (media == null) {
             media = TutorMedia.builder()
                          .tutor(tutor)
                          .mediaType("VIDEO") 
-                         .url("PENDING") // Initial placeholder for the Not Null 'url' column
+                         .url("PENDING") 
                          .build();
             tutor.setMedia(media);
         }
 
-        // Handle Video Upload - Fixes the 400 'url' null constraint error
         if (videoFile != null && !videoFile.isEmpty()) {
             String videoPath = cloudinaryService.uploadFile(videoFile);
             media.setIntroVideoUrl(videoPath);
-            media.setUrl(videoPath); // ✅ SETTING 'url' TO MATCH 'introVideoUrl'
+            media.setUrl(videoPath); 
         }
 
-        // Handle Certificates
         if (certs != null && !certs.isEmpty()) {
             List<String> uploadedCerts = certs.stream()
                     .filter(file -> file != null && !file.isEmpty())
@@ -76,7 +92,7 @@ public class TutorServiceImpl implements TutorService {
             media.getCertificateImages().addAll(uploadedCerts);
         }
 
-        // 5. Update Bio, Education, and Experience
+        // 3. Update Text Content
         tutor.setBio(request.getBio());
 
         tutor.getEducation().clear();
@@ -101,6 +117,7 @@ public class TutorServiceImpl implements TutorService {
             });
         }
 
+        // Note: isPublic stays false here until they click 'Publish'
         tutorRepository.save(tutor);
     }
 
@@ -117,6 +134,7 @@ public class TutorServiceImpl implements TutorService {
                 .profilePicture(tutor.getProfilePicture())
                 .introVideoUrl(tutor.getMedia() != null ? tutor.getMedia().getIntroVideoUrl() : null)
                 .certificateImages(tutor.getMedia() != null ? tutor.getMedia().getCertificateImages() : null)
+                .isPublic(tutor.isPublic()) // Added to response so frontend knows the status
                 .education(tutor.getEducation().stream()
                     .map(e -> new TutorFullViewResponse.EducationDto(e.getSchoolName(), e.getDegree(), e.getYearFinished()))
                     .collect(Collectors.toList()))
@@ -134,4 +152,50 @@ public class TutorServiceImpl implements TutorService {
             tutorRepository.save(t);
         });
     }
+
+
+    @Override
+@Transactional
+public void unpublishProfile() {
+    // 1. Get the current logged-in user's email
+    String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+    // 2. Find the tutor profile
+    Tutor tutor = tutorRepository.findByUserEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found"));
+
+    // 3. Set to false so they disappear from the public website
+    tutor.setPublic(false); 
+    
+    tutorRepository.save(tutor);
+}
+
+
+@Override
+@Transactional(readOnly = true)
+public TutorFullViewResponse getMyOwnProfile() {
+    // 1. Get email from Token
+    String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+    // 2. Find the tutor linked to this email
+    Tutor tutor = tutorRepository.findByUserEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException("Profile not found. Please create one first."));
+
+    // 3. Map to Full View (reuse your existing mapping logic)
+    return TutorFullViewResponse.builder()
+            .tutorId(tutor.getId())
+            .fullname(tutor.getUser().getFullname())
+            .bio(tutor.getBio())
+            .profilePicture(tutor.getProfilePicture())
+            .isPublic(tutor.isPublic()) // 👈 Very important for the Tutor to see!
+            .rating(tutor.getAverageRating())
+            .studentsTaught(tutor.getTotalStudentsTaught())
+            .education(tutor.getEducation().stream()
+                .map(e -> new TutorFullViewResponse.EducationDto(e.getSchoolName(), e.getDegree(), e.getYearFinished()))
+                .collect(Collectors.toList()))
+            .experience(tutor.getExperience().stream()
+                .map(ex -> new TutorFullViewResponse.ExperienceDto(ex.getCompanyName(), ex.getRole(), ex.getDuration()))
+                .collect(Collectors.toList()))
+            .build();
+}
 }

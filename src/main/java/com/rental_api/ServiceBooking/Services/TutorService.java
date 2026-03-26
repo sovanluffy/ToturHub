@@ -10,8 +10,7 @@ public interface TutorService {
     
     /**
      * Save or Update the professional identity.
-     * Handles Bio, Education, and Experience via JSON, 
-     * and handles Profile Image, Intro Video, and Certificates via Local File Storage.
+     * Keeps the profile as a "Draft" (isPublic = false) until published.
      */
     void updateTutorProfile(
         TutorProfileRequest request, 
@@ -21,12 +20,30 @@ public interface TutorService {
     );
 
     /**
-     * Get the "See All" view: Profile + All Posted Classes + Reviews
+     * Makes the tutor profile visible on the public website.
+     * Flips the isPublic flag to true.
+     */
+    void publishProfile();
+
+    /**
+     * Hides the tutor profile from the public website.
+     * Flips the isPublic flag to false.
+     */
+    void unpublishProfile();
+
+    /**
+     * ✅ NEW: Get the logged-in tutor's own profile.
+     * Identified via Security Token. Used for the private dashboard.
+     */
+    TutorFullViewResponse getMyOwnProfile();
+
+    /**
+     * Get the "See All" view for a specific tutor (Public or Admin view).
      */
     TutorFullViewResponse getTutorFullDetail(Long tutorId);
     
     /**
-     * Increment stats when a student finishes a class
+     * Increment stats when a student finishes a class.
      */
     void incrementStudentCount(Long tutorId);
 }

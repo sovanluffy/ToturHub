@@ -1,19 +1,22 @@
 package com.rental_api.ServiceBooking.Dto.Response;
 
 import lombok.*;
-import java.math.BigDecimal;
-import java.util.Map;
+import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class TutorCardResponse {
-    private Long classId;
-    private String title;
-    private String tutorName;
-    private String tutorImage;
+    private Long tutorId;
+    private String fullname;
+    private String profilePicture;
     private Double rating;
-    private String location; 
-    private Map<Integer, BigDecimal> priceOptions;
+    private Integer studentsTaught;
+    private boolean isPublic;
+    // Top 2 specialties or degrees to show on the card
+    private List<String> highlights; 
+    
+    // Starting price for the tutor's classes
+    private Double startingPrice; 
 }

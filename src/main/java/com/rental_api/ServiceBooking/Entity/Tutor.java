@@ -61,4 +61,7 @@ public class Tutor {
     @Builder.Default
     @OneToMany(mappedBy = "tutor")
     private List<Review> reviews = new ArrayList<>();
+
+    @Column(name = "is_public", nullable = false)
+private boolean isPublic = false; // Default is false (Hidden)
 }
