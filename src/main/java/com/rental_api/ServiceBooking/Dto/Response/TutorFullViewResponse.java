@@ -6,14 +6,21 @@ import java.util.*;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class TutorFullViewResponse {
     // --- Profile Section ---
     private Long tutorId;
     private String fullname;
     private String bio;
     private String profilePicture;
-    private String videoUrl;
-    private List<String> certificates;
+
+    // ✅ CHANGED: Renamed to match the Service Builder
+    private String introVideoUrl; 
+    
+    // ✅ CHANGED: Renamed to match the Service Builder
+    private List<String> certificateImages; 
+
     private Double rating;
     private Integer studentsTaught;
 
@@ -21,17 +28,45 @@ public class TutorFullViewResponse {
     private List<EducationDto> education;
     private List<ExperienceDto> experience;
 
-    // --- "Post More" Section: List of all classes ---
+    // --- Sections ---
     private List<ClassSummaryDto> activeClasses;
-
-    // --- Social Proof ---
     private List<ReviewDto> reviews;
 
-    @Data @Builder public static class EducationDto { String school, degree, year; }
-    @Data @Builder public static class ExperienceDto { String company, role, duration; }
-    @Data @Builder public static class ReviewDto { String student, comment; Integer stars; }
+    @Data 
+    @Builder 
+    @NoArgsConstructor 
+    @AllArgsConstructor 
+    public static class EducationDto { 
+        private String school; 
+        private String degree; 
+        private String year; 
+    }
+
+    @Data 
+    @Builder 
+    @NoArgsConstructor 
+    @AllArgsConstructor 
+    public static class ExperienceDto { 
+        private String company; 
+        private String role; 
+        private String duration; 
+    }
+
+    @Data 
+    @Builder 
+    @NoArgsConstructor 
+    @AllArgsConstructor 
+    public static class ReviewDto { 
+        private String student; 
+        private String comment; 
+        private Integer stars; 
+    }
     
-    @Data @Builder public static class ClassSummaryDto {
+    @Data 
+    @Builder 
+    @NoArgsConstructor 
+    @AllArgsConstructor 
+    public static class ClassSummaryDto {
         private Long id;
         private String title;
         private Map<Integer, BigDecimal> prices;

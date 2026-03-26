@@ -3,12 +3,19 @@ package com.rental_api.ServiceBooking.Services.impl;
 import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
 import com.rental_api.ServiceBooking.Dto.Response.TutorFullViewResponse;
 import com.rental_api.ServiceBooking.Entity.*;
+import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
+import com.rental_api.ServiceBooking.Exception.UserNotFoundException;
 import com.rental_api.ServiceBooking.Repository.TutorRepository;
+import com.rental_api.ServiceBooking.Repository.UserRepository;
+import com.rental_api.ServiceBooking.Services.CloudinaryService; 
 import com.rental_api.ServiceBooking.Services.TutorService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
@@ -16,40 +23,83 @@ import java.util.stream.Collectors;
 public class TutorServiceImpl implements TutorService {
 
     private final TutorRepository tutorRepository;
+    private final UserRepository userRepository;
+    private final CloudinaryService cloudinaryService; 
 
     @Override
     @Transactional
-    public void updateTutorProfile(TutorProfileRequest request) {
-        Tutor tutor = tutorRepository.findById(request.getTutorId())
-                .orElseThrow(() -> new RuntimeException("Tutor not found"));
+    public void updateTutorProfile(TutorProfileRequest request, 
+                                   MultipartFile profileImg, 
+                                   MultipartFile videoFile, 
+                                   List<MultipartFile> certs) {
+        
+        // 1. Identify User from Security Token
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        // 1. Update Media & Basic Info
+        // 2. Find existing Tutor or create a new entry
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+            .orElseGet(() -> {
+                User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new UserNotFoundException("User not found"));
+                return Tutor.builder().user(user).build();
+            });
+
+        // 3. Handle Profile Image Upload
+        if (profileImg != null && !profileImg.isEmpty()) {
+            tutor.setProfilePicture(cloudinaryService.uploadFile(profileImg));
+        }
+
+        // 4. Initialize Media and fix Database Constraints (media_type and url)
+        TutorMedia media = tutor.getMedia();
+        if (media == null) {
+            media = TutorMedia.builder()
+                         .tutor(tutor)
+                         .mediaType("VIDEO") 
+                         .url("PENDING") // Initial placeholder for the Not Null 'url' column
+                         .build();
+            tutor.setMedia(media);
+        }
+
+        // Handle Video Upload - Fixes the 400 'url' null constraint error
+        if (videoFile != null && !videoFile.isEmpty()) {
+            String videoPath = cloudinaryService.uploadFile(videoFile);
+            media.setIntroVideoUrl(videoPath);
+            media.setUrl(videoPath); // ✅ SETTING 'url' TO MATCH 'introVideoUrl'
+        }
+
+        // Handle Certificates
+        if (certs != null && !certs.isEmpty()) {
+            List<String> uploadedCerts = certs.stream()
+                    .filter(file -> file != null && !file.isEmpty())
+                    .map(cloudinaryService::uploadFile)
+                    .collect(Collectors.toList());
+            media.getCertificateImages().addAll(uploadedCerts);
+        }
+
+        // 5. Update Bio, Education, and Experience
         tutor.setBio(request.getBio());
-        tutor.setProfilePicture(request.getProfilePicture());
-        tutor.setIntroVideoUrl(request.getIntroVideoUrl());
-        tutor.setCertificateImages(request.getCertificateImages());
 
-        // 2. Update Education Timeline (Clear old and add new)
         tutor.getEducation().clear();
-        tutor.getEducation().addAll(request.getEducation().stream()
-                .map(edu -> Education.builder()
-                        .schoolName(edu.getSchool())
-                        .degree(edu.getDegree())
-                        .yearFinished(edu.getYear())
-                        .tutor(tutor)
-                        .build())
-                .collect(Collectors.toList()));
+        if (request.getEducation() != null) {
+            request.getEducation().forEach(eduReq -> {
+                tutor.getEducation().add(Education.builder()
+                    .schoolName(eduReq.getSchool())
+                    .degree(eduReq.getDegree())
+                    .yearFinished(eduReq.getYear())
+                    .tutor(tutor).build());
+            });
+        }
 
-        // 3. Update Experience Timeline
         tutor.getExperience().clear();
-        tutor.getExperience().addAll(request.getExperience().stream()
-                .map(exp -> Experience.builder()
-                        .companyName(exp.getCompany())
-                        .role(exp.getRole())
-                        .duration(exp.getDuration())
-                        .tutor(tutor)
-                        .build())
-                .collect(Collectors.toList()));
+        if (request.getExperience() != null) {
+            request.getExperience().forEach(expReq -> {
+                tutor.getExperience().add(Experience.builder()
+                    .companyName(expReq.getCompany())
+                    .role(expReq.getRole())
+                    .duration(expReq.getDuration())
+                    .tutor(tutor).build());
+            });
+        }
 
         tutorRepository.save(tutor);
     }
@@ -57,48 +107,21 @@ public class TutorServiceImpl implements TutorService {
     @Override
     @Transactional(readOnly = true)
     public TutorFullViewResponse getTutorFullDetail(Long tutorId) {
-        Tutor t = tutorRepository.findById(tutorId)
-                .orElseThrow(() -> new RuntimeException("Tutor not found"));
+        Tutor tutor = tutorRepository.findById(tutorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
 
         return TutorFullViewResponse.builder()
-                .tutorId(t.getId())
-                .fullname(t.getUser().getFullname())
-                .bio(t.getBio())
-                .profilePicture(t.getProfilePicture())
-                .videoUrl(t.getIntroVideoUrl())
-                .certificates(t.getCertificateImages())
-                .rating(t.getAverageRating())
-                .studentsTaught(t.getTotalStudentsTaught())
-                
-                // Map Education History
-                .education(t.getEducation().stream().map(e -> 
-                    TutorFullViewResponse.EducationDto.builder()
-                        .school(e.getSchoolName()).degree(e.getDegree()).year(e.getYearFinished()).build())
+                .tutorId(tutor.getId())
+                .fullname(tutor.getUser().getFullname()) 
+                .bio(tutor.getBio())
+                .profilePicture(tutor.getProfilePicture())
+                .introVideoUrl(tutor.getMedia() != null ? tutor.getMedia().getIntroVideoUrl() : null)
+                .certificateImages(tutor.getMedia() != null ? tutor.getMedia().getCertificateImages() : null)
+                .education(tutor.getEducation().stream()
+                    .map(e -> new TutorFullViewResponse.EducationDto(e.getSchoolName(), e.getDegree(), e.getYearFinished()))
                     .collect(Collectors.toList()))
-                
-                // Map Experience History
-                .experience(t.getExperience().stream().map(ex -> 
-                    TutorFullViewResponse.ExperienceDto.builder()
-                        .company(ex.getCompanyName()).role(ex.getRole()).duration(ex.getDuration()).build())
-                    .collect(Collectors.toList()))
-
-                // THE "POST MORE" LOGIC: Map all active classes posted by this tutor
-                .activeClasses(t.getOpenClasses().stream().map(c -> 
-                    TutorFullViewResponse.ClassSummaryDto.builder()
-                        .id(c.getId())
-                        .title(c.getTitle())
-                        .prices(c.getPriceOptions())
-                        .modes(c.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()))
-                        .build())
-                    .collect(Collectors.toList()))
-
-                // Map Social Proof (Reviews)
-                .reviews(t.getReviews().stream().map(r -> 
-                    TutorFullViewResponse.ReviewDto.builder()
-                        .student(r.getStudent().getFullname())
-                        .comment(r.getComment())
-                        .stars(r.getRating())
-                        .build())
+                .experience(tutor.getExperience().stream()
+                    .map(ex -> new TutorFullViewResponse.ExperienceDto(ex.getCompanyName(), ex.getRole(), ex.getDuration()))
                     .collect(Collectors.toList()))
                 .build();
     }
@@ -106,8 +129,9 @@ public class TutorServiceImpl implements TutorService {
     @Override
     @Transactional
     public void incrementStudentCount(Long tutorId) {
-        Tutor t = tutorRepository.findById(tutorId).orElseThrow();
-        t.setTotalStudentsTaught(t.getTotalStudentsTaught() + 1);
-        tutorRepository.save(t);
+        tutorRepository.findById(tutorId).ifPresent(t -> {
+            t.setTotalStudentsTaught(t.getTotalStudentsTaught() + 1);
+            tutorRepository.save(t);
+        });
     }
 }

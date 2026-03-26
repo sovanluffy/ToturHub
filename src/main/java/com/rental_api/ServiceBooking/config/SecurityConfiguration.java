@@ -1,6 +1,7 @@
 package com.rental_api.ServiceBooking.config;
 
 import com.rental_api.ServiceBooking.Security.JwtAuthenticationFilter;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,14 +36,15 @@ public class SecurityConfiguration {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                // OPTIONS preflight for CORS
+                // 1. Preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // ✅ Public endpoints: register, login, & Swagger
+                // 2. Public endpoints
                 .requestMatchers(
-                        "/api/auth/**",
+                        "/api/v1/auth/**",
                         "/auth/**",
                         "/auth/google/**",
+                        "/api/v1/public/**",
                         "/api/v1/auth-service/**",
                         "/swagger-ui/**",
                         "/swagger-ui.html",
@@ -52,33 +54,32 @@ public class SecurityConfiguration {
                         "/webjars/**"
                 ).permitAll()
 
-                // ✅ NEW: Public Tutor endpoints (Anyone can see the list)
+                // 3. Public GET access for Tutors and Classes
                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
 
-                // ✅ Admin-only endpoints (Small role 'admin')
-                .requestMatchers("/api/v1/admin/**").hasRole("admin") // New Admin logic
+                // 4. Admin Access (Matches 'ROLE_admin')
+                .requestMatchers("/api/v1/admin/**").hasRole("admin")
                 .requestMatchers("/api/categories/**").hasRole("admin")
                 .requestMatchers("/users/**").hasRole("admin")
                 .requestMatchers(HttpMethod.GET, "/provider-requests/all").hasRole("admin")
                 .requestMatchers(HttpMethod.PUT, "/provider-requests/*/status").hasRole("admin")
                 .requestMatchers(HttpMethod.GET, "/api/bookings/all").hasRole("admin")
 
-                // ✅ NEW: Tutor endpoints (Small role 'tutor')
+                // 5. Tutor Access (Matches 'ROLE_tutor')
                 .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/tutors/**").hasRole("tutor")
-                // Inside authorizeHttpRequests:
-.requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll() 
-.requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
-                
-                // ✅ Student/Customer endpoints (Small role 'student')
+                .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
+
+                // 6. Student/Customer Access (Matches 'ROLE_student')
                 .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
                 .requestMatchers(HttpMethod.GET, "/api/bookings/my").hasAnyRole("student", "tutor")
 
-                // Legacy logic (Preserved from your code)
+                // 7. Generic Authenticated paths
                 .requestMatchers("/api/services/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/provider-requests/request").authenticated()
 
-                // Catch-all
+                // 8. Catch-all
                 .anyRequest().authenticated()
             )
             .sessionManagement(session ->
@@ -94,7 +95,6 @@ public class SecurityConfiguration {
         return http.build();
     }
 
-    // ------------------- CORS (Preserved as is) -------------------
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();

@@ -2,6 +2,7 @@ package com.rental_api.ServiceBooking.Services.impl;
 
 import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
+import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
 import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Entity.OpenClass.LearningMode;
 import com.rental_api.ServiceBooking.Entity.OpenClass.ClassStatus;
@@ -109,4 +110,35 @@ public class OpenClassServiceImpl implements OpenClassService {
                         .collect(Collectors.toList()))
                 .build();
     }
+
+    @Override
+@Transactional(readOnly = true)
+public List<TutorCardResponse> getAllPublicCards() {
+    // 1. Fetch all classes from DB
+    return openClassRepository.findAll().stream()
+            // 2. Only show classes that are still "OPEN"
+            .filter(c -> c.getStatus() == OpenClass.ClassStatus.OPEN)
+            // 3. Convert Entity to DTO
+            .map(this::mapToCardResponse)
+            .collect(Collectors.toList());
+}
+
+private TutorCardResponse mapToCardResponse(OpenClass entity) {
+    // Safety check for null tutor/user to avoid NullPointerException
+    String name = (entity.getTutor() != null && entity.getTutor().getUser() != null) 
+                  ? entity.getTutor().getUser().getFullname() : "Unknown Tutor";
+    
+    String profilePic = (entity.getTutor() != null) ? entity.getTutor().getProfilePicture() : null;
+    Double tutorRating = (entity.getTutor() != null) ? entity.getTutor().getAverageRating() : 0.0;
+
+    return TutorCardResponse.builder()
+            .classId(entity.getId())
+            .title(entity.getTitle())
+            .tutorName(name)
+            .tutorImage(profilePic)
+            .rating(tutorRating)
+            .location(entity.getCity() + ", " + entity.getDistrict())
+            .priceOptions(entity.getPriceOptions())
+            .build();
+}
 }
