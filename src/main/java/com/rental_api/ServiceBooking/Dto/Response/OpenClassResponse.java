@@ -2,7 +2,9 @@ package com.rental_api.ServiceBooking.Dto.Response;
 
 import lombok.*;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Data
 @Builder
@@ -11,19 +13,20 @@ import java.util.*;
 public class OpenClassResponse {
     private Long classId;
     private String title;
-    
-    // --- ADD THESE FIELDS TO FIX THE ERROR ---
+    private String description;
+    private Long tutorId;
     private String tutorName;
     private String tutorImage;
     private Double tutorRating;
-    // -----------------------------------------
-
+    private Integer yearsOfExperience;
+    private List<String> subjects;
     private Map<Integer, BigDecimal> pricing;
-    private Set<String> modes;
+    
+    // ✅ Change this field name to 'learningModes'
+    private Set<String> learningModes; 
+    
     private String status;
     private String location;
-
-    // For the "See Details" view
     private List<ScheduleDto> availableSlots;
 
     @Data

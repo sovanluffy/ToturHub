@@ -1,7 +1,6 @@
 package com.rental_api.ServiceBooking.config;
 
 import com.rental_api.ServiceBooking.Security.JwtAuthenticationFilter;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +17,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
@@ -33,13 +33,14 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
+            // 1. Apply CORS configuration
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                // 1. Preflight
+                // Allow Preflight OPTIONS requests for all paths
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // 2. Public endpoints
+                // Public endpoints & Swagger
                 .requestMatchers(
                         "/api/v1/auth/**",
                         "/auth/**",
@@ -51,35 +52,25 @@ public class SecurityConfiguration {
                         "/v3/api-docs/**",
                         "/api-docs/**",
                         "/swagger-resources/**",
-                        "/webjars/**"
+                        "/webjars/**",
+                        "/uploads/**" // Allow access to uploaded files
                 ).permitAll()
 
-                // 3. Public GET access for Tutors and Classes
+                // Public GET access
                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
 
-                // 4. Admin Access (Matches 'ROLE_admin')
+                // Admin Access
                 .requestMatchers("/api/v1/admin/**").hasRole("admin")
                 .requestMatchers("/api/categories/**").hasRole("admin")
                 .requestMatchers("/users/**").hasRole("admin")
-                .requestMatchers(HttpMethod.GET, "/provider-requests/all").hasRole("admin")
-                .requestMatchers(HttpMethod.PUT, "/provider-requests/*/status").hasRole("admin")
-                .requestMatchers(HttpMethod.GET, "/api/bookings/all").hasRole("admin")
 
-                // 5. Tutor Access (Matches 'ROLE_tutor')
+                // Tutor/Student Specifics
                 .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/tutors/**").hasRole("tutor")
                 .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
-
-                // 6. Student/Customer Access (Matches 'ROLE_student')
                 .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
-                .requestMatchers(HttpMethod.GET, "/api/bookings/my").hasAnyRole("student", "tutor")
-
-                // 7. Generic Authenticated paths
-                .requestMatchers("/api/services/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/provider-requests/request").authenticated()
-
-                // 8. Catch-all
+                
                 .anyRequest().authenticated()
             )
             .sessionManagement(session ->
@@ -98,13 +89,18 @@ public class SecurityConfiguration {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        
+        // ADD YOUR PRODUCTION URL HERE
         configuration.setAllowedOrigins(Arrays.asList(
+            "https://toturhub-dev.onrender.com", // Essential for live Swagger
             "http://localhost:5500",
             "http://127.0.0.1:5500",
-            "http://localhost:42239"
+            "http://localhost:8080"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization","Content-Type","X-Requested-With","Accept"));
+        
+        // Allow all common headers and methods
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList("*")); // Simpler to allow all for Swagger
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

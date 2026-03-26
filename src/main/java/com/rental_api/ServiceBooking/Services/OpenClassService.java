@@ -4,28 +4,38 @@ import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
 import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface OpenClassService {
     
     /**
-     * Create a new class offering with pricing and time slots.
+     * Create a new class offering. The Tutor ID is extracted from the Security Token.
      */
     OpenClassResponse createClass(OpenClassRequest request);
 
     /**
-     * Search for all classes with status 'OPEN'. 
-     * @param city Optional filter for location (e.g., "Phnom Penh").
+     * Advanced search using JPA Specifications.
      */
-    List<OpenClassResponse> findAllActiveClasses(String city);
+    List<OpenClassResponse> searchClasses(
+            String city, 
+            Long subjectId, 
+            BigDecimal maxPrice, 
+            Integer minExp
+    );
 
     /**
-     * Get the full details of a specific class including all available schedules.
+     * Get details for a specific class listing.
      */
     OpenClassResponse getClassDetails(Long id);
 
     /**
-     * Get basic Tutor cards for the main discovery page.
+     * Get all public tutor cards for the discovery/home page.
      */
     List<TutorCardResponse> getAllPublicCards();
+
+    /**
+     * Get all classes created by a specific tutor.
+     */
+    List<OpenClassResponse> findByTutorId(Long tutorId);
 }

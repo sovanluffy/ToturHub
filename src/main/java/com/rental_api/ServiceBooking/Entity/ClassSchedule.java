@@ -1,15 +1,16 @@
 package com.rental_api.ServiceBooking.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "class_schedules")
-@Getter 
-@Setter 
-@Builder 
-@NoArgsConstructor 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class ClassSchedule {
 
@@ -17,16 +18,22 @@ public class ClassSchedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "start_time", nullable = false)
+    // ✅ The Parent Relationship
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "open_class_id", nullable = false) // This maps to the foreign key in DB
+    @JsonIgnore // Prevents infinite recursion during JSON serialization
+    private OpenClass openClass;
+
+    @Column(nullable = false)
     private LocalDateTime startTime;
 
-    @Column(name = "end_time", nullable = false)
+    @Column(nullable = false)
     private LocalDateTime endTime;
 
     @Builder.Default
     private boolean isBooked = false;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "open_class_id")
-    private OpenClass openClass;
+    // Optional: Reference to the booking if one exists
+    // @OneToOne(mappedBy = "schedule")
+    // private Booking booking;
 }

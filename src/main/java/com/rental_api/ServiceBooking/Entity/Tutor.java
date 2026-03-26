@@ -24,7 +24,12 @@ public class Tutor {
     private String bio;
     private String profilePicture; 
 
-    // ✅ NEW: Relationship to the new Media Entity
+    // ✅ ADD THIS FIELD TO RESOLVE THE ERROR
+    @Builder.Default
+    @Column(name = "years_of_experience")
+    private Integer yearsOfExperience = 0; 
+
+    // ✅ Relationship to the new Media Entity
     @OneToOne(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
     private TutorMedia media;
 
@@ -63,5 +68,5 @@ public class Tutor {
     private List<Review> reviews = new ArrayList<>();
 
     @Column(name = "is_public", nullable = false)
-private boolean isPublic = false; // Default is false (Hidden)
+    private boolean isPublic = false; 
 }
