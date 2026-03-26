@@ -2,13 +2,15 @@ package com.rental_api.ServiceBooking.Entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "subjects")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter 
+@Setter 
+@NoArgsConstructor 
+@AllArgsConstructor 
 @Builder
 public class Subject {
 
@@ -19,7 +21,7 @@ public class Subject {
     @Column(nullable = false, unique = true)
     private String name;
 
-    // Optional: Back-reference to tutors if you need to find tutors by subject
-    @ManyToMany(mappedBy = "subjects")
-    private List<Tutor> tutors;
+    @Builder.Default
+    @ManyToMany(mappedBy = "subjects") // This name MUST match the variable in Tutor.java
+    private List<Tutor> tutors = new ArrayList<>();
 }

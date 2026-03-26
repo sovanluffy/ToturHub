@@ -2,15 +2,30 @@ package com.rental_api.ServiceBooking.Services;
 
 import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
+import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
+
 import java.util.List;
 
 public interface OpenClassService {
-    // 1. Tutor opens a class with multiple prices and time slots
+    
+    /**
+     * Create a new class offering with pricing and time slots.
+     */
     OpenClassResponse createClass(OpenClassRequest request);
 
-    // 2. Student chooses location: City, District, and Learning Mode
-    List<OpenClassResponse> searchClasses(String city, String district, String learningMode);
+    /**
+     * Search for all classes with status 'OPEN'. 
+     * @param city Optional filter for location (e.g., "Phnom Penh").
+     */
+    List<OpenClassResponse> findAllActiveClasses(String city);
 
-    // 3. Get all details for a specific class (including clickable slots)
+    /**
+     * Get the full details of a specific class including all available schedules.
+     */
     OpenClassResponse getClassDetails(Long id);
+
+    /**
+     * Get basic Tutor cards for the main discovery page.
+     */
+    List<TutorCardResponse> getAllPublicCards();
 }
