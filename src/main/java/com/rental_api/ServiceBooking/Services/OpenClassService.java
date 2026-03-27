@@ -15,10 +15,16 @@ public interface OpenClassService {
     OpenClassResponse createClass(OpenClassRequest request);
 
     /**
-     * Advanced search using JPA Specifications.
+     * Update an existing class. Only the owner (tutor) can perform this.
+     */
+    OpenClassResponse updateClass(Long id, OpenClassRequest request);
+
+    /**
+     * Advanced search using Location (City/District) and other filters.
      */
     List<OpenClassResponse> searchClasses(
             String city, 
+            String district, 
             Long subjectId, 
             BigDecimal maxPrice, 
             Integer minExp
@@ -38,4 +44,9 @@ public interface OpenClassService {
      * Get all classes created by a specific tutor.
      */
     List<OpenClassResponse> findByTutorId(Long tutorId);
+
+    /**
+     * Remove a class listing.
+     */
+    void deleteClass(Long id);
 }

@@ -8,8 +8,13 @@ import java.util.*;
 
 @Entity
 @Table(name = "open_classes")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter 
+@Setter 
+@Builder 
+@NoArgsConstructor 
+@AllArgsConstructor
 public class OpenClass {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,14 +22,14 @@ public class OpenClass {
     @Column(nullable = false)
     private String title;
     
-    @Column(length = 2000) // Increased length for detailed descriptions
+    @Column(length = 2000)
     private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id", nullable = false)
     private Tutor tutor;
 
-    // --- 📚 SUBJECT FILTERS ---
+    // --- 📚 SUBJECTS (Many-to-Many) ---
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "class_subjects",
@@ -34,29 +39,32 @@ public class OpenClass {
     private List<Subject> subjects = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
+    @Builder.Default
     private ClassStatus status = ClassStatus.OPEN;
 
-    // --- 💰 PRICE FILTERS ---
-    // Key: Student Count (e.g., 1 for private, 5 for group)
-    // Value: Price per student
+    // --- 💰 PRICING (Map: Student Count -> Price) ---
     @ElementCollection
     @CollectionTable(name = "class_pricing", joinColumns = @JoinColumn(name = "class_id"))
     @MapKeyColumn(name = "student_group_size")
     @Column(name = "price_amount")
     private Map<Integer, BigDecimal> priceOptions;
 
-    // --- 📍 LOCATION FILTERS ---
+    // --- 📍 LOCATION (Relationship to Location Entity) ---
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location; 
+
+    // Specific details like "Street 289, House #12"
+    private String specificAddress;
+
     @ElementCollection(targetClass = LearningMode.class)
     @CollectionTable(name = "class_learning_modes", joinColumns = @JoinColumn(name = "class_id"))
     @Enumerated(EnumType.STRING)
     private Set<LearningMode> learningModes;
 
-    private String city;
-    private String district;
-    private String address;
-
-    // --- 📅 AVAILABILITY FILTERS ---
+    // --- 📅 SCHEDULES (One-to-Many) ---
     @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ClassSchedule> schedules = new ArrayList<>();
 
     // --- 🕒 METADATA ---
@@ -67,7 +75,12 @@ public class OpenClass {
         this.createdAt = LocalDateTime.now();
     }
 
-    // ENUMS
-    public enum LearningMode { STUDENT_HOME, TUTOR_HOME, ONLINE, OUTSIDE }
-    public enum ClassStatus { OPEN, CLOSED, FULL, ARCHIVED }
+    // --- ENUMS ---
+    public enum LearningMode { 
+        STUDENT_HOME, TUTOR_HOME, ONLINE, OUTSIDE 
+    }
+    
+    public enum ClassStatus { 
+        OPEN, CLOSED, FULL, ARCHIVED 
+    }
 }

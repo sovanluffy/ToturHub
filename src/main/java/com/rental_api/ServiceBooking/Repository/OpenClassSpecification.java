@@ -3,6 +3,7 @@ package com.rental_api.ServiceBooking.Repository;
 import com.rental_api.ServiceBooking.Entity.OpenClass;
 import com.rental_api.ServiceBooking.Entity.OpenClass.ClassStatus;
 import com.rental_api.ServiceBooking.Entity.Subject;
+import com.rental_api.ServiceBooking.Entity.Location; // Added
 import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -21,13 +22,14 @@ public class OpenClassSpecification {
         return (Root<OpenClass> root, CriteriaQuery<?> query, CriteriaBuilder cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. Mandatory: Only show OPEN classes from PUBLIC tutors
+            // 1. Logic: Only show OPEN classes
             predicates.add(cb.equal(root.get("status"), ClassStatus.OPEN));
-            predicates.add(cb.isTrue(root.get("tutor").get("isPublic")));
-
-            // 2. Filter by City (Location)
+            
+            // 2. Filter by City (Fix: Must join with Location table)
             if (city != null && !city.isEmpty()) {
-                predicates.add(cb.equal(root.get("city"), city));
+                // We navigate: OpenClass -> Location (entity) -> City (field)
+                Join<OpenClass, Location> locationJoin = root.join("location");
+                predicates.add(cb.equal(locationJoin.get("city"), city));
             }
 
             // 3. Filter by Subject
@@ -36,9 +38,8 @@ public class OpenClassSpecification {
                 predicates.add(cb.equal(subjectJoin.get("id"), subjectId));
             }
 
-            // 4. Filter by Max Price
+            // 4. Filter by Max Price (Map Join)
             if (maxPrice != null) {
-                // Join the Map table 'class_pricing'
                 MapJoin<OpenClass, Integer, BigDecimal> priceJoin = root.joinMap("priceOptions");
                 predicates.add(cb.lessThanOrEqualTo(priceJoin.value(), maxPrice));
             }
@@ -48,7 +49,7 @@ public class OpenClassSpecification {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("tutor").get("yearsOfExperience"), minExperience));
             }
 
-            // Avoid duplicate results when joining lists
+            // Avoid duplicate results (SQL DISTINCT)
             query.distinct(true);
 
             return cb.and(predicates.toArray(new Predicate[0]));

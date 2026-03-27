@@ -13,23 +13,23 @@ import java.util.List;
 public interface OpenClassRepository extends JpaRepository<OpenClass, Long>, JpaSpecificationExecutor<OpenClass> {
 
     /**
-     * ✅ Corrected: Find classes by a specific LearningMode inside the Set.
-     * Use "Containing" when dealing with Collections (Set/List) in method names.
+     * ✅ FIX: Use "Location_City" to tell Spring to look inside the Location entity.
+     * Logic: OpenClass -> location -> city
+     */
+    List<OpenClass> findByLocation_CityAndStatus(String city, ClassStatus status);
+
+    /**
+     * ✅ FIX: Use "Location_District" for nested search.
+     */
+    List<OpenClass> findByLocation_DistrictAndStatus(String district, ClassStatus status);
+
+    /**
+     * ✅ Corrected: Find by LearningMode in a Set
      */
     List<OpenClass> findByLearningModesContainingAndStatus(LearningMode mode, ClassStatus status);
-
-    /**
-     * Find all open classes in a specific city.
-     */
-    List<OpenClass> findByCityAndStatus(String city, ClassStatus status);
     
     /**
-     * Get all classes created by a specific tutor.
+     * ✅ Standard find by Tutor ID
      */
     List<OpenClass> findByTutorId(Long tutorId);
-
-    /**
-     * ✅ IMPORTANT: Adding JpaSpecificationExecutor allows you to pass 
-     * the Specification we built for Subject, Price, and Experience filters.
-     */
 }

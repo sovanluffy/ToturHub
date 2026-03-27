@@ -16,7 +16,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -33,79 +32,96 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            // 1. Apply CORS configuration
+            // Enable CORS globally
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
+
+            // Authorization rules
             .authorizeHttpRequests(auth -> auth
-                // Allow Preflight OPTIONS requests for all paths
+
+                // Allow preflight requests
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Public endpoints & Swagger
+                // Public authentication endpoints
                 .requestMatchers(
                         "/api/v1/auth/**",
+                        "/api/auth/**",
                         "/auth/**",
-                        "/auth/google/**",
+                        "/auth/google/**"
+                ).permitAll()
+
+                // Public APIs
+                .requestMatchers(
                         "/api/v1/public/**",
-                        "/api/v1/auth-service/**",
+                        "/uploads/**"
+                ).permitAll()
+
+                // Swagger / API Docs
+                .requestMatchers(
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
                         "/api-docs/**",
                         "/swagger-resources/**",
-                        "/webjars/**",
-                        "/uploads/**" // Allow access to uploaded files
+                        "/webjars/**"
                 ).permitAll()
 
-                // Public GET access
+                // Public GET endpoints
                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
 
-                // Admin Access
+                // Admin endpoints
                 .requestMatchers("/api/v1/admin/**").hasRole("admin")
                 .requestMatchers("/api/categories/**").hasRole("admin")
                 .requestMatchers("/users/**").hasRole("admin")
 
-                // Tutor/Student Specifics
+                // Tutor endpoints
                 .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
                 .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
+
+                // Student endpoints
                 .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
-                
+
+                // Everything else requires authentication
                 .anyRequest().authenticated()
             )
+
+            // Stateless session (JWT)
             .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
+
+            // Authentication provider
             .authenticationProvider(authenticationProvider)
+
+            // JWT Filter
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+            // Exception handling
             .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                .accessDeniedHandler(jwtAccessDeniedHandler)
+                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                    .accessDeniedHandler(jwtAccessDeniedHandler)
             );
 
         return http.build();
     }
 
+    // Global CORS configuration
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // ADD YOUR PRODUCTION URL HERE
-        configuration.setAllowedOrigins(Arrays.asList(
-            "https://toturhub-dev.onrender.com", // Essential for live Swagger
-            "http://localhost:5500",
-            "http://127.0.0.1:5500",
-            "http://localhost:8080"
-        ));
-        
-        // Allow all common headers and methods
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*")); // Simpler to allow all for Swagger
-        configuration.setAllowCredentials(true);
+
+        // Allow all origins (frontend can call any endpoint)
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true); // allow cookies/auth headers
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", configuration); // apply to all endpoints
         return source;
     }
 }

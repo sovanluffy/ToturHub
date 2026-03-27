@@ -6,34 +6,29 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "class_schedules")
-@Getter
-@Setter
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ClassSchedule {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ✅ The Parent Relationship
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "open_class_id", nullable = false) // This maps to the foreign key in DB
-    @JsonIgnore // Prevents infinite recursion during JSON serialization
-    private OpenClass openClass;
-
-    @Column(nullable = false)
     private LocalDateTime startTime;
-
-    @Column(nullable = false)
     private LocalDateTime endTime;
 
-    @Builder.Default
+    // Add these to handle Daily vs Weekend
+    @Enumerated(EnumType.STRING)
+    private ScheduleType type; // DAILY, WEEKEND, SPECIFIC_DATE
+
     private boolean isBooked = false;
 
-    // Optional: Reference to the booking if one exists
-    // @OneToOne(mappedBy = "schedule")
-    // private Booking booking;
+    @ManyToOne
+    @JoinColumn(name = "open_class_id")
+    private OpenClass openClass;
+
+    public enum ScheduleType {
+        DAILY, WEEKEND, ONCE
+    }
 }
