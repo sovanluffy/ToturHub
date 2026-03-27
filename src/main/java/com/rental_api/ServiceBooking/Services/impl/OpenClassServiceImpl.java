@@ -40,6 +40,7 @@ public class OpenClassServiceImpl implements OpenClassService {
         return saveOrUpdateClass(new OpenClass(), request, tutor);
     }
 
+    @Override
     @Transactional
     public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
         Tutor tutor = getCurrentTutor();
@@ -68,7 +69,7 @@ public class OpenClassServiceImpl implements OpenClassService {
 
     private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest request, Tutor tutor) {
         Location location = locationRepository.findById(request.getLocationId())
-                .orElseThrow(() -> new RuntimeException("Location not found"));
+                .orElseThrow(() -> new RuntimeException("Location not found with ID: " + request.getLocationId()));
 
         entity.setTitle(request.getTitle());
         entity.setDescription(request.getDescription());
@@ -79,7 +80,7 @@ public class OpenClassServiceImpl implements OpenClassService {
         entity.setSubjects(subjectRepository.findAllById(request.getSubjectIds()));
         entity.setStatus(OpenClass.ClassStatus.OPEN);
 
-        // Handle Learning Modes (if provided in DTO)
+        // Map Learning Modes
         if (request.getLearningModes() != null) {
             Set<OpenClass.LearningMode> modes = request.getLearningModes().stream()
                     .map(mode -> OpenClass.LearningMode.valueOf(mode.toUpperCase()))
@@ -87,8 +88,7 @@ public class OpenClassServiceImpl implements OpenClassService {
             entity.setLearningModes(modes);
         }
 
-        // 📅 GENERATE RECURRING SLOTS
-        // Using orphanRemoval = true in Entity means clear() will delete old slots in DB
+        // Generate Schedules (Orphan Removal logic deletes old records)
         if (entity.getSchedules() != null) {
             entity.getSchedules().clear();
         } else {
@@ -106,7 +106,6 @@ public class OpenClassServiceImpl implements OpenClassService {
 
     private void generateSlotsFromConfig(OpenClass entity, OpenClassRequest.ScheduleConfig config) {
         LocalDate current = config.getStartDate();
-        
         while (!current.isAfter(config.getEndDate())) {
             DayOfWeek day = current.getDayOfWeek();
             boolean isWeekend = (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY);
@@ -141,7 +140,7 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .classId(entity.getId())
                 .title(entity.getTitle())
                 .description(entity.getDescription())
-                .status(entity.getStatus().toString())
+                .status(entity.getStatus().name())
                 .tutorId(t.getId())
                 .tutorName(t.getUser().getFullname())
                 .tutorImage(t.getProfilePicture())
@@ -151,9 +150,6 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .specificAddress(entity.getSpecificAddress())
                 .subjects(entity.getSubjects().stream().map(Subject::getName).collect(Collectors.toList()))
                 .pricing(entity.getPriceOptions())
-                // Ensure learningModes are mapped if not null
-                .learningModes(entity.getLearningModes() != null ? 
-                        entity.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()) : null)
                 .availableSlots(entity.getSchedules().stream()
                         .filter(s -> !s.isBooked())
                         .sorted(Comparator.comparing(ClassSchedule::getStartTime))
@@ -162,7 +158,6 @@ public class OpenClassServiceImpl implements OpenClassService {
                                 .timeRange(s.getStartTime().format(timeFmt) + " - " + 
                                            s.getEndTime().format(timeFmt) + " (" + 
                                            s.getStartTime().format(dateFmt) + ")")
-                                .isBooked(s.isBooked())
                                 .build())
                         .collect(Collectors.toList()))
                 .build();
@@ -171,61 +166,47 @@ public class OpenClassServiceImpl implements OpenClassService {
     @Override
     @Transactional(readOnly = true)
     public List<OpenClassResponse> searchClasses(String city, String district, Long subjectId, BigDecimal maxPrice, Integer minExp) {
-        // Correctly calls the Specification with all filters
         Specification<OpenClass> spec = OpenClassSpecification.getFilteredClasses(city, district, subjectId, maxPrice, minExp);
-        return openClassRepository.findAll(spec).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return openClassRepository.findAll(spec).stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public OpenClassResponse getClassDetails(Long id) {
-        return openClassRepository.findById(id)
-                .map(this::mapToResponse)
+        return openClassRepository.findById(id).map(this::mapToResponse)
                 .orElseThrow(() -> new RuntimeException("Class not found"));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TutorCardResponse> getAllPublicCards() {
-        return tutorRepository.findAll().stream()
-                .filter(Tutor::isPublic)
+        return tutorRepository.findAll().stream().filter(Tutor::isPublic)
                 .map(t -> TutorCardResponse.builder()
-                        .tutorId(t.getId())
-                        .fullname(t.getUser().getFullname())
-                        .profilePicture(t.getProfilePicture())
-                        .rating(t.getAverageRating())
-                        .studentsTaught(t.getTotalStudentsTaught())
-                        .isPublic(t.isPublic())
-                        .build())
+                        .tutorId(t.getId()).fullname(t.getUser().getFullname()).profilePicture(t.getProfilePicture())
+                        .rating(t.getAverageRating()).studentsTaught(t.getTotalStudentsTaught()).build())
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<OpenClassResponse> findByTutorId(Long tutorId) {
-        return openClassRepository.findByTutorId(tutorId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return openClassRepository.findByTutorId(tutorId).stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public void deleteClass(Long id) {
-        OpenClass entity = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-        Tutor tutor = getCurrentTutor();
-        if (!entity.getTutor().getId().equals(tutor.getId())) {
-            throw new RuntimeException("Unauthorized");
-        }
+        OpenClass entity = openClassRepository.findById(id).orElseThrow(() -> new RuntimeException("Class not found"));
+        if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) throw new RuntimeException("Unauthorized");
         openClassRepository.delete(entity);
     }
+
+    // --- SECURE HELPERS ---
 
     private Tutor getCurrentTutor() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return tutorRepository.findByUserEmail(email)
-                .orElseThrow(() -> new RuntimeException("Tutor record not found"));
+                .orElseThrow(() -> new RuntimeException("Tutor record not found for: " + email));
     }
 
     private String saveImage(MultipartFile file) {
