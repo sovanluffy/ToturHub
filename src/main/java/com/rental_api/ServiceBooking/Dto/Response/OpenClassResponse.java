@@ -11,25 +11,33 @@ import java.util.*;
 public class OpenClassResponse {
     private Long classId;
     private String title;
-    
-    // --- ADD THESE FIELDS TO FIX THE ERROR ---
-    private String tutorName;
-    private String tutorImage;
-    private Double tutorRating;
-    // -----------------------------------------
-
-    private Map<Integer, BigDecimal> pricing;
-    private Set<String> modes;
+    private String description;
     private String status;
-    private String location;
+    
+    // Tutor Info
+    private Long tutorId;
+    private String tutorName;
+    private String tutorImage; 
+    private Double tutorRating;
+    private Integer yearsOfExperience;
 
-    // For the "See Details" view
+    // Location Info
+    private String location; // Formatted as "District, City"
+    private String specificAddress;
+
+    // Data Lists
+    private List<String> subjects;
+    private Set<String> learningModes;
+    private Map<Integer, BigDecimal> pricing;
     private List<ScheduleDto> availableSlots;
 
     @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ScheduleDto {
         private Long id;
         private String timeRange;
+        private boolean isBooked;
     }
 }

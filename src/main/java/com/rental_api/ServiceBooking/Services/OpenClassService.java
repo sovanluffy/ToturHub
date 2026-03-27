@@ -4,28 +4,49 @@ import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
 import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface OpenClassService {
     
     /**
-     * Create a new class offering with pricing and time slots.
+     * Create a new class offering. The Tutor ID is extracted from the Security Token.
      */
     OpenClassResponse createClass(OpenClassRequest request);
 
     /**
-     * Search for all classes with status 'OPEN'. 
-     * @param city Optional filter for location (e.g., "Phnom Penh").
+     * Update an existing class. Only the owner (tutor) can perform this.
      */
-    List<OpenClassResponse> findAllActiveClasses(String city);
+    OpenClassResponse updateClass(Long id, OpenClassRequest request);
 
     /**
-     * Get the full details of a specific class including all available schedules.
+     * Advanced search using Location (City/District) and other filters.
+     */
+    List<OpenClassResponse> searchClasses(
+            String city, 
+            String district, 
+            Long subjectId, 
+            BigDecimal maxPrice, 
+            Integer minExp
+    );
+
+    /**
+     * Get details for a specific class listing.
      */
     OpenClassResponse getClassDetails(Long id);
 
     /**
-     * Get basic Tutor cards for the main discovery page.
+     * Get all public tutor cards for the discovery/home page.
      */
     List<TutorCardResponse> getAllPublicCards();
+
+    /**
+     * Get all classes created by a specific tutor.
+     */
+    List<OpenClassResponse> findByTutorId(Long tutorId);
+
+    /**
+     * Remove a class listing.
+     */
+    void deleteClass(Long id);
 }

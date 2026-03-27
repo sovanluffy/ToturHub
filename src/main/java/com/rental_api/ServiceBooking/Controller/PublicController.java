@@ -31,17 +31,7 @@ public class PublicController {
         return ResponseEntity.ok(ApiResponse.success(cards));
     }
 
-    /**
-     * SEARCH ACTIVE CLASSES
-     * Allows filtering classes by city (e.g., /api/v1/public/classes?city=Phnom Penh)
-     */
-    @GetMapping("/classes")
-    @Operation(summary = "Search Classes", description = "Returns a list of all active class offerings, optionally filtered by city.")
-    public ResponseEntity<ApiResponse<List<OpenClassResponse>>> searchClasses(
-            @RequestParam(required = false) String city) {
-        List<OpenClassResponse> classes = openClassService.findAllActiveClasses(city);
-        return ResponseEntity.ok(ApiResponse.success(classes));
-    }
+    
 
     /**
      * VIEW CLASS DETAILS

@@ -2,27 +2,37 @@ package com.rental_api.ServiceBooking.Dto.Request;
 
 import lombok.Data;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Data
 public class OpenClassRequest {
     private String title;
     private String description;
-    private Long tutorId;
     private List<Long> subjectIds;
-    private Map<Integer, BigDecimal> priceOptions; // "Put more" prices
-    private Set<String> learningModes; // "Choose more" modes (Home, Online, etc.)
-    private String city;
-    private String district;
-    private String address;
-    private List<ScheduleRequest> timeSlots;
+    private List<String> learningModes;
+    
+    private Long locationId; 
+    private String specificAddress;
+
+    private Map<Integer, BigDecimal> priceOptions;
+
+    // --- RECURRING SCHEDULE LOGIC ---
+    // Change from single fields to a List to support "Daily AND Weekend"
+    private List<ScheduleConfig> schedules;
 
     @Data
-    public static class ScheduleRequest {
-        private LocalDateTime startTime;
-        private LocalDateTime endTime;
+    public static class ScheduleConfig {
+        private String scheduleType; // "DAILY", "WEEKEND", "WEEKDAY"
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private List<TimeRangeRequest> timeRanges; 
+    }
+
+    @Data
+    public static class TimeRangeRequest {
+        private String startTime; // "08:00"
+        private String endTime;   // "10:00"
     }
 }
