@@ -32,96 +32,111 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            // Enable CORS globally
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(AbstractHttpConfigurer::disable)
+                // Enable CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
 
-            // Authorization rules
-            .authorizeHttpRequests(auth -> auth
+                // Authorization
+                .authorizeHttpRequests(auth -> auth
 
-                // Allow preflight requests
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Allow preflight requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Public authentication endpoints
-                .requestMatchers(
-                        "/api/v1/auth/**",
-                        "/api/auth/**",
-                        "/auth/**",
-                        "/auth/google/**"
-                ).permitAll()
+                        // Auth endpoints
+                        .requestMatchers(
+                                "/api/v1/auth/**",
+                                "/api/auth/**",
+                                "/auth/**",
+                                "/auth/google/**"
+                        ).permitAll()
 
-                // Public APIs
-                .requestMatchers(
-                        "/api/v1/public/**",
-                        "/uploads/**"
-                ).permitAll()
+                        // Public resources
+                        .requestMatchers(
+                                "/api/v1/public/**",
+                                "/uploads/**"
+                        ).permitAll()
 
-                // Swagger / API Docs
-                .requestMatchers(
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/v3/api-docs/**",
-                        "/api-docs/**",
-                        "/swagger-resources/**",
-                        "/webjars/**"
-                ).permitAll()
+                        // Swagger
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
 
-                // Public GET endpoints
-                .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
+                        // Public GET APIs
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
 
-                // Admin endpoints
-                .requestMatchers("/api/v1/admin/**").hasRole("admin")
-                .requestMatchers("/api/categories/**").hasRole("admin")
-                .requestMatchers("/users/**").hasRole("admin")
+                        // FIXED: your endpoint
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/public-cards").permitAll()
 
-                // Tutor endpoints
-                .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
-                .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
+                        // or allow all open classes
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
 
-                // Student endpoints
-                .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
+                        // Admin
+                        .requestMatchers("/api/v1/admin/**").hasRole("admin")
+                        .requestMatchers("/api/categories/**").hasRole("admin")
+                        .requestMatchers("/users/**").hasRole("admin")
 
-                // Everything else requires authentication
-                .anyRequest().authenticated()
-            )
+                        // Tutor
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
 
-            // Stateless session (JWT)
-            .sessionManagement(session ->
-                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
+                        // Student
+                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
 
-            // Authentication provider
-            .authenticationProvider(authenticationProvider)
+                        // Others require auth
+                        .anyRequest().authenticated()
+                )
 
-            // JWT Filter
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Stateless JWT
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
 
-            // Exception handling
-            .exceptionHandling(ex -> ex
-                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                    .accessDeniedHandler(jwtAccessDeniedHandler)
-            );
+                // Provider
+                .authenticationProvider(authenticationProvider)
+
+                // JWT Filter
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // Exception handler
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler)
+                );
 
         return http.build();
     }
 
-    // Global CORS configuration
+    // Global CORS
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Allow all origins (frontend can call any endpoint)
+        // allow all http origins
         configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "OPTIONS"
+        ));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true); // allow cookies/auth headers
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration); // apply to all endpoints
+        source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }
+
