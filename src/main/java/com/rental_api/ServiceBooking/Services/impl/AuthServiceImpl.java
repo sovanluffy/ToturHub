@@ -5,10 +5,12 @@ import com.rental_api.ServiceBooking.Dto.Request.RegisterRequest;
 import com.rental_api.ServiceBooking.Dto.Response.AuthResponse;
 import com.rental_api.ServiceBooking.Entity.Role;
 import com.rental_api.ServiceBooking.Entity.User;
+import com.rental_api.ServiceBooking.Entity.Tutor;
 import com.rental_api.ServiceBooking.Exception.ConflictException;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.RoleRepository;
 import com.rental_api.ServiceBooking.Repository.UserRepository;
+import com.rental_api.ServiceBooking.Repository.TutorRepository;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 import com.rental_api.ServiceBooking.Security.JwtUtils;
@@ -32,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final TutorRepository tutorRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final CloudinaryService cloudinaryService;
@@ -45,14 +48,20 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request, MultipartFile avatar) {
         validateEmail(request.getEmail());
-        if (userRepository.findByEmail(request.getEmail()).isPresent())
+        
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new ConflictException("Email already exists");
+        }
 
+        // ✅ Step 1: Upload to Cloudinary
+        // This MUST return a string starting with "https://res.cloudinary.com/"
         String avatarUrl = null;
         if (avatar != null && !avatar.isEmpty()) {
             avatarUrl = cloudinaryService.uploadFile(avatar);
+            log.info("Cloudinary upload successful. URL: {}", avatarUrl);
         }
 
+        // ✅ Step 2: Build User with the SECURE URL (No local path prefix)
         User user = User.builder()
                 .fullname(request.getFullname())
                 .email(request.getEmail())
@@ -60,7 +69,7 @@ public class AuthServiceImpl implements AuthService {
                 .phone(request.getPhone())
                 .address(request.getAddress())
                 .location(request.getLocation())
-                .avatarUrl(avatarUrl) // <- avatar saved here
+                .avatarUrl(avatarUrl) 
                 .status(User.Status.ACTIVE)
                 .build();
 
@@ -69,7 +78,7 @@ public class AuthServiceImpl implements AuthService {
         user.setRoles(Set.of(studentRole));
 
         user = userRepository.save(user);
-        return buildAuthResponse(user, "Student registered successfully");
+        return buildAuthResponse(user, "User registered successfully with Cloudinary avatar");
     }
 
     // ------------------- LOGIN -------------------
@@ -102,7 +111,19 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus(User.Status.PENDING);
         user = userRepository.save(user);
 
-        return buildAuthResponse(user, "Tutor request submitted. Awaiting admin approval.");
+        // ✅ IMPORTANT: Create Tutor record to link User and Tutor tables
+        if (tutorRepository.findByUserEmail(user.getEmail()).isEmpty()) {
+            Tutor tutorProfile = Tutor.builder()
+                    .user(user)
+                    .isPublic(false)
+                    .averageRating(0.0)
+                    .totalStudentsTaught(0)
+                    .yearsOfExperience(0)
+                    .build();
+            tutorRepository.save(tutorProfile);
+        }
+
+        return buildAuthResponse(user, "Tutor request submitted. Awaiting approval.");
     }
 
     // ------------------- ADMIN APPROVE / REJECT -------------------
@@ -113,6 +134,12 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         user.setStatus(User.Status.ACTIVE);
         userRepository.save(user);
+
+        // ✅ FIX: Lombok naming for 'isPublic' field requires 'setPublic'
+        tutorRepository.findByUserEmail(user.getEmail()).ifPresent(t -> {
+            t.setPublic(true); 
+            tutorRepository.save(t);
+        });
     }
 
     @Override
@@ -120,20 +147,26 @@ public class AuthServiceImpl implements AuthService {
     public void rejectTutor(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        user.getRoles().removeIf(r -> r.getName().equals("tutor"));
+        user.getRoles().removeIf(r -> r.getName().equalsIgnoreCase("tutor"));
         user.setStatus(User.Status.REJECTED);
         userRepository.save(user);
     }
 
     // ------------------- HELPERS -------------------
     private void validateEmail(String email) {
-        if (!EMAIL_PATTERN.matcher(email).matches())
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
             throw new ConflictException("Invalid email format");
+        }
     }
 
     private AuthResponse buildAuthResponse(User user, String message) {
-        List<String> roleNames = user.getRoles().stream().map(Role::getName).collect(Collectors.toList());
-        List<Long> roleIds = user.getRoles().stream().map(Role::getId).collect(Collectors.toList());
+        List<String> roleNames = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toList());
+        
+        List<Long> roleIds = user.getRoles().stream()
+                .map(Role::getId)
+                .collect(Collectors.toList());
 
         String token = jwtUtils.generateToken(
                 user.getId(),
@@ -147,7 +180,7 @@ public class AuthServiceImpl implements AuthService {
                 .userId(user.getId())
                 .fullname(user.getFullname())
                 .email(user.getEmail())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(user.getAvatarUrl()) // ✅ This will now return the https link
                 .message(message)
                 .token(token)
                 .roles(roleNames)
