@@ -13,65 +13,56 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // Prevents CORS issues with your frontend
 public class AuthController {
 
     private final AuthService authService;
 
     /**
-     * REGISTER WITH CLOUDINARY AVATAR
-     * Postman 'body' setup: 
-     * 1. Select 'form-data'
-     * 2. Key: "user" (Type: Text)   -> Value: { "fullname": "Alice", "email": "alice@cl.com", ... }
-     * 3. Key: "avatar" (Type: File) -> Value: [Select your image file]
+     * REGISTER: Accepts form-data.
+     * Use @RequestPart for the JSON body and the file separately.
      */
-    @PostMapping(value = "/register-with-avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<AuthResponse> registerWithAvatar(
-            @RequestPart("user") @Valid RegisterRequest registerRequest,
-            @RequestPart(value = "avatar", required = false) MultipartFile avatar
-    ) {
-        // This method calls the service, which calls Cloudinary and saves the HTTPS link
-        AuthResponse response = authService.register(registerRequest, avatar);
+    @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<AuthResponse> register(
+            @RequestPart("request") @Valid RegisterRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        
+        AuthResponse response = authService.register(request, avatar);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     /**
-     *  LOGIN
+     * LOGIN: Standard JSON request.
      */
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.login(request));
     }
 
     /**
-     * 🎓 REQUEST TUTOR ROLE
-     * Adds 'Tutor' role to user and creates a blank Tutor profile.
+     * REQUEST TUTOR ROLE: Changes status to PENDING and creates profile.
      */
     @PostMapping("/request-tutor/{userId}")
     public ResponseEntity<AuthResponse> requestTutor(@PathVariable Long userId) {
-        AuthResponse response = authService.requestTutor(userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.requestTutor(userId));
     }
 
     /**
-     *  ADMIN APPROVE TUTOR
-     * Activates the tutor profile and sets visibility to public.
+     * APPROVE TUTOR: (Usually called by an Admin)
      */
-    @PostMapping("/approve-tutor/{userId}")
-    public ResponseEntity<String> approveTutor(@PathVariable Long userId) {
+    @PutMapping("/approve-tutor/{userId}")
+    public ResponseEntity<Void> approveTutor(@PathVariable Long userId) {
         authService.approveTutor(userId);
-        return ResponseEntity.ok("Tutor approved successfully. Profile is now live.");
+        return ResponseEntity.noContent().build();
     }
 
     /**
-     *  ADMIN REJECT TUTOR
+     * REJECT TUTOR: (Usually called by an Admin)
      */
-    @PostMapping("/reject-tutor/{userId}")
-    public ResponseEntity<String> rejectTutor(@PathVariable Long userId) {
+    @PutMapping("/reject-tutor/{userId}")
+    public ResponseEntity<Void> rejectTutor(@PathVariable Long userId) {
         authService.rejectTutor(userId);
-        return ResponseEntity.ok("Tutor request has been rejected.");
+        return ResponseEntity.noContent().build();
     }
 }

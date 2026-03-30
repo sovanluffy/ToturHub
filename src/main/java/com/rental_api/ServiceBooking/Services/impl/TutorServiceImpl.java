@@ -10,14 +10,17 @@ import com.rental_api.ServiceBooking.Repository.UserRepository;
 import com.rental_api.ServiceBooking.Services.CloudinaryService; 
 import com.rental_api.ServiceBooking.Services.TutorService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TutorServiceImpl implements TutorService {
@@ -25,26 +28,6 @@ public class TutorServiceImpl implements TutorService {
     private final TutorRepository tutorRepository;
     private final UserRepository userRepository;
     private final CloudinaryService cloudinaryService; 
-
-    /**
-     * ✅ NEW: PUBLISH PROFILE LOGIC
-     * This flips the 'isPublic' switch so the tutor card appears on the homepage.
-     */
-    @Override
-    @Transactional
-    public void publishProfile() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        Tutor tutor = tutorRepository.findByUserEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found. Please save your info first."));
-        
-        // Optional: Add a check to ensure profile is complete before publishing
-        if (tutor.getProfilePicture() == null || tutor.getBio() == null) {
-            throw new RuntimeException("Cannot publish: Profile picture and bio are required.");
-        }
-
-        tutor.setPublic(true); // Assuming you added 'private boolean isPublic' to Tutor entity
-        tutorRepository.save(tutor);
-    }
 
     @Override
     @Transactional
@@ -58,32 +41,40 @@ public class TutorServiceImpl implements TutorService {
         Tutor tutor = tutorRepository.findByUserEmail(email)
             .orElseGet(() -> {
                 User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new UserNotFoundException("User not found"));
+                    .orElseThrow(() -> new UserNotFoundException("User not found: " + email));
                 return Tutor.builder().user(user).build();
             });
 
-        // 1. Handle Profile Image
+        // 1. Update Profile Image (Cloudinary)
         if (profileImg != null && !profileImg.isEmpty()) {
+            if (tutor.getProfilePicture() != null) {
+                cloudinaryService.deleteFile(tutor.getProfilePicture());
+            }
             tutor.setProfilePicture(cloudinaryService.uploadFile(profileImg));
         }
 
-        // 2. Handle Media & DB Constraints
+        // 2. Manage Media Table (Video & Certs)
         TutorMedia media = tutor.getMedia();
         if (media == null) {
             media = TutorMedia.builder()
                          .tutor(tutor)
+                         .certificateImages(new ArrayList<>())
                          .mediaType("VIDEO") 
-                         .url("PENDING") 
                          .build();
             tutor.setMedia(media);
         }
 
+        // Upload Video
         if (videoFile != null && !videoFile.isEmpty()) {
-            String videoPath = cloudinaryService.uploadFile(videoFile);
-            media.setIntroVideoUrl(videoPath);
-            media.setUrl(videoPath); 
+            if (media.getIntroVideoUrl() != null) {
+                cloudinaryService.deleteFile(media.getIntroVideoUrl());
+            }
+            String videoUrl = cloudinaryService.uploadFile(videoFile);
+            media.setIntroVideoUrl(videoUrl);
+            media.setUrl(videoUrl); 
         }
 
+        // Upload Multiple Certificates
         if (certs != null && !certs.isEmpty()) {
             List<String> uploadedCerts = certs.stream()
                     .filter(file -> file != null && !file.isEmpty())
@@ -92,56 +83,76 @@ public class TutorServiceImpl implements TutorService {
             media.getCertificateImages().addAll(uploadedCerts);
         }
 
-        // 3. Update Text Content
+        // 3. Update Text Metadata
         tutor.setBio(request.getBio());
 
+        // Refresh Education
         tutor.getEducation().clear();
         if (request.getEducation() != null) {
-            request.getEducation().forEach(eduReq -> {
+            request.getEducation().forEach(edu -> {
                 tutor.getEducation().add(Education.builder()
-                    .schoolName(eduReq.getSchool())
-                    .degree(eduReq.getDegree())
-                    .yearFinished(eduReq.getYear())
+                    .schoolName(edu.getSchool())
+                    .degree(edu.getDegree())
+                    .yearFinished(edu.getYear())
                     .tutor(tutor).build());
             });
         }
 
+        // Refresh Experience
         tutor.getExperience().clear();
         if (request.getExperience() != null) {
-            request.getExperience().forEach(expReq -> {
+            request.getExperience().forEach(exp -> {
                 tutor.getExperience().add(Experience.builder()
-                    .companyName(expReq.getCompany())
-                    .role(expReq.getRole())
-                    .duration(expReq.getDuration())
+                    .companyName(exp.getCompany())
+                    .role(exp.getRole())
+                    .duration(exp.getDuration())
                     .tutor(tutor).build());
             });
         }
 
-        // Note: isPublic stays false here until they click 'Publish'
         tutorRepository.save(tutor);
+        log.info("Cloud-synced update complete for tutor: {}", email);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TutorFullViewResponse getMyOwnProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found for " + email));
+        return mapToResponse(tutor);
     }
 
     @Override
     @Transactional(readOnly = true)
     public TutorFullViewResponse getTutorFullDetail(Long tutorId) {
         Tutor tutor = tutorRepository.findById(tutorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found with ID: " + tutorId));
+        return mapToResponse(tutor);
+    }
 
-        return TutorFullViewResponse.builder()
-                .tutorId(tutor.getId())
-                .fullname(tutor.getUser().getFullname()) 
-                .bio(tutor.getBio())
-                .profilePicture(tutor.getProfilePicture())
-                .introVideoUrl(tutor.getMedia() != null ? tutor.getMedia().getIntroVideoUrl() : null)
-                .certificateImages(tutor.getMedia() != null ? tutor.getMedia().getCertificateImages() : null)
-                .isPublic(tutor.isPublic()) // Added to response so frontend knows the status
-                .education(tutor.getEducation().stream()
-                    .map(e -> new TutorFullViewResponse.EducationDto(e.getSchoolName(), e.getDegree(), e.getYearFinished()))
-                    .collect(Collectors.toList()))
-                .experience(tutor.getExperience().stream()
-                    .map(ex -> new TutorFullViewResponse.ExperienceDto(ex.getCompanyName(), ex.getRole(), ex.getDuration()))
-                    .collect(Collectors.toList()))
-                .build();
+    @Override
+    @Transactional
+    public void publishProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile not found"));
+        
+        if (tutor.getProfilePicture() == null || tutor.getBio() == null) {
+            throw new RuntimeException("Profile incomplete: Bio and Picture required to publish.");
+        }
+        tutor.setPublic(true);
+        tutorRepository.save(tutor);
+    }
+
+    @Override
+    @Transactional
+    public void unpublishProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile not found"));
+        tutor.setPublic(false);
+        tutorRepository.save(tutor);
     }
 
     @Override
@@ -153,41 +164,16 @@ public class TutorServiceImpl implements TutorService {
         });
     }
 
-
-    @Override
-@Transactional
-public void unpublishProfile() {
-    // 1. Get the current logged-in user's email
-    String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-    // 2. Find the tutor profile
-    Tutor tutor = tutorRepository.findByUserEmail(email)
-            .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found"));
-
-    // 3. Set to false so they disappear from the public website
-    tutor.setPublic(false); 
-    
-    tutorRepository.save(tutor);
-}
-
-
-@Override
-@Transactional(readOnly = true)
-public TutorFullViewResponse getMyOwnProfile() {
-    // 1. Get email from Token
-    String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-    // 2. Find the tutor linked to this email
-    Tutor tutor = tutorRepository.findByUserEmail(email)
-            .orElseThrow(() -> new ResourceNotFoundException("Profile not found. Please create one first."));
-
-    // 3. Map to Full View (reuse your existing mapping logic)
-    return TutorFullViewResponse.builder()
+    // --- Private Helper ---
+    private TutorFullViewResponse mapToResponse(Tutor tutor) {
+        return TutorFullViewResponse.builder()
             .tutorId(tutor.getId())
             .fullname(tutor.getUser().getFullname())
             .bio(tutor.getBio())
             .profilePicture(tutor.getProfilePicture())
-            .isPublic(tutor.isPublic()) // 👈 Very important for the Tutor to see!
+            .introVideoUrl(tutor.getMedia() != null ? tutor.getMedia().getIntroVideoUrl() : null)
+            .certificateImages(tutor.getMedia() != null ? tutor.getMedia().getCertificateImages() : new ArrayList<>())
+            .isPublic(tutor.isPublic())
             .rating(tutor.getAverageRating())
             .studentsTaught(tutor.getTotalStudentsTaught())
             .education(tutor.getEducation().stream()
@@ -197,5 +183,5 @@ public TutorFullViewResponse getMyOwnProfile() {
                 .map(ex -> new TutorFullViewResponse.ExperienceDto(ex.getCompanyName(), ex.getRole(), ex.getDuration()))
                 .collect(Collectors.toList()))
             .build();
-}
+    }
 }
