@@ -6,18 +6,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public interface TutorService {
-    void updateTutorProfile(TutorProfileRequest request, 
-                           MultipartFile profileImg, 
-                           MultipartFile videoFile, 
-                           List<MultipartFile> certificates);
-                           
+    // Existing methods
+    void updateTutorProfile(TutorProfileRequest request, MultipartFile profileImg, MultipartFile videoFile, List<MultipartFile> certificates);
     TutorFullViewResponse getTutorFullDetail(Long tutorId);
-    
     TutorFullViewResponse getMyOwnProfile();
-    
     void publishProfile();
-    
     void unpublishProfile();
-    
+
+    // ✅ ADD THIS LINE TO FIX THE ERROR
     void incrementStudentCount(Long tutorId);
 }
