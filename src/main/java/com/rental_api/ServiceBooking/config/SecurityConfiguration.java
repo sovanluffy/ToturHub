@@ -16,7 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
@@ -32,78 +32,111 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth
-                // OPTIONS preflight for CORS
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Enable CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
 
-                // ✅ Public endpoints: register & login
-                .requestMatchers(
-                        "/api/auth/**",
-                        "/auth/**",
-                        "/auth/google/**",
-                        "/api/v1/auth-service/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/v3/api-docs/**",
-                        "/api-docs/**",
-                        "/swagger-resources/**",
-                        "/webjars/**"
-                ).permitAll()
+                // Authorization
+                .authorizeHttpRequests(auth -> auth
 
-                // Admin-only endpoints
-                .requestMatchers("/api/categories/**").hasRole("ADMIN")
-                .requestMatchers("/users/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/provider-requests/all").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/provider-requests/*/status").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/bookings/all").hasRole("ADMIN")
+                        // Allow preflight requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Customer endpoints
-                .requestMatchers(HttpMethod.POST, "/api/services/*/bookings").hasRole("CUSTOMER")
-                .requestMatchers(HttpMethod.GET, "/api/bookings/my").hasRole("CUSTOMER")
+                        // Auth endpoints
+                        .requestMatchers(
+                                "/api/v1/auth/**",
+                                "/api/auth/**",
+                                "/auth/**",
+                                "/auth/google/**"
+                        ).permitAll()
 
-                // Provider endpoints
-                .requestMatchers(HttpMethod.PUT, "/api/bookings/*/accept").hasRole("PROVIDER")
-                .requestMatchers(HttpMethod.PUT, "/api/bookings/*/reject").hasRole("PROVIDER")
+                        // Public resources
+                        .requestMatchers(
+                                "/api/v1/public/**",
+                                "/uploads/**"
+                        ).permitAll()
 
-                // Authenticated for all other endpoints
-                .requestMatchers("/api/services/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/provider-requests/request").authenticated()
+                        // Swagger
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
 
-                // Catch-all
-                .anyRequest().authenticated()
-            )
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authenticationProvider(authenticationProvider)
-            // JWT filter must be after permitAll checks
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                .accessDeniedHandler(jwtAccessDeniedHandler)
-            );
+                        // Public GET APIs
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
+
+                        // FIXED: your endpoint
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/public-cards").permitAll()
+
+                        // or allow all open classes
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
+
+                        // Admin
+                        .requestMatchers("/api/v1/admin/**").hasRole("admin")
+                        .requestMatchers("/api/categories/**").hasRole("admin")
+                        .requestMatchers("/users/**").hasRole("admin")
+
+                        // Tutor
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
+
+                        // Student
+                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
+
+                        // Others require auth
+                        .anyRequest().authenticated()
+                )
+
+                // Stateless JWT
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                // Provider
+                .authenticationProvider(authenticationProvider)
+
+                // JWT Filter
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // Exception handler
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler)
+                );
 
         return http.build();
     }
 
-    // ------------------- CORS -------------------
+    // Global CORS
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:5500",
-            "http://127.0.0.1:5500",
-            "http://localhost:42239"
+
+        // allow all http origins
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "OPTIONS"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization","Content-Type","X-Requested-With","Accept"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }
+

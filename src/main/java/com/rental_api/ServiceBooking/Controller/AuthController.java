@@ -4,61 +4,65 @@ import com.rental_api.ServiceBooking.Dto.Request.LoginRequest;
 import com.rental_api.ServiceBooking.Dto.Request.RegisterRequest;
 import com.rental_api.ServiceBooking.Dto.Response.AuthResponse;
 import com.rental_api.ServiceBooking.Services.AuthService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.Valid;
-
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
 
-    // ------------------- REGISTER WITH AVATAR -------------------
+    /**
+     * REGISTER: Accepts form-data.
+     * Use @RequestPart for the JSON body and the file separately.
+     */
     @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AuthResponse> register(
-            @RequestPart("user") @Valid String userJson,
-            @RequestPart(value = "avatar", required = false) MultipartFile avatar
-    ) throws Exception {
-
-        // Deserialize JSON string to RegisterRequest
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        RegisterRequest registerRequest = mapper.readValue(userJson, RegisterRequest.class);
-
-        AuthResponse response = authService.register(registerRequest, avatar);
-        return ResponseEntity.ok(response);
+            @RequestPart("request") @Valid RegisterRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        
+        AuthResponse response = authService.register(request, avatar);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    // ------------------- LOGIN -------------------
+    /**
+     * LOGIN: Standard JSON request.
+     */
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.login(request));
     }
 
-    // ------------------- REQUEST TUTOR -------------------
+    /**
+     * REQUEST TUTOR ROLE: Changes status to PENDING and creates profile.
+     */
     @PostMapping("/request-tutor/{userId}")
     public ResponseEntity<AuthResponse> requestTutor(@PathVariable Long userId) {
-        AuthResponse response = authService.requestTutor(userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.requestTutor(userId));
     }
 
-    // ------------------- ADMIN APPROVE -------------------
-    @PostMapping("/approve-tutor/{userId}")
+    /**
+     * APPROVE TUTOR: (Usually called by an Admin)
+     */
+    @PutMapping("/approve-tutor/{userId}")
     public ResponseEntity<Void> approveTutor(@PathVariable Long userId) {
         authService.approveTutor(userId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
-    // ------------------- ADMIN REJECT -------------------
-    @PostMapping("/reject-tutor/{userId}")
+    /**
+     * REJECT TUTOR: (Usually called by an Admin)
+     */
+    @PutMapping("/reject-tutor/{userId}")
     public ResponseEntity<Void> rejectTutor(@PathVariable Long userId) {
         authService.rejectTutor(userId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

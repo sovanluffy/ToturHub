@@ -23,10 +23,10 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     private String password;
 
-    private String phone;
-    private String address;
-    private String location;
+    private String phone;      // optional
+    private String address;    // optional
+    private String location;   // optional
 
-    // Do NOT include avatarUrl here
-    // File upload is handled in Controller with MultipartFile
+    // ✅ DO NOT include avatar here
+    // MultipartFile avatar is handled in controller separately with @RequestPart
 }
