@@ -30,20 +30,17 @@ public class User implements UserDetails {
     private String phone;
     private String address;
     private String location;
+
+    // ✅ Avatar URL for Cloudinary
     private String avatarUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private Status status = Status.ACTIVE; 
+    private Status status = Status.ACTIVE;
 
-    // --- FIX: Added INACTIVE and DELETED here ---
     public enum Status {
-        ACTIVE, 
-        PENDING, 
-        REJECTED, 
-        INACTIVE,   // This fixes the Service error
-        DELETED     // For future account deletions
+        ACTIVE, PENDING, REJECTED, INACTIVE, DELETED
     }
 
     @ManyToMany(fetch = FetchType.EAGER)
@@ -64,27 +61,25 @@ public class User implements UserDetails {
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName()))
                 .collect(Collectors.toSet());
     }
-    
+
     @Override
     public String getUsername() {
-        return this.email; 
+        return this.email;
     }
 
     @Override
     public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isAccountNonLocked() { 
-        // Logic fix: A user is only "Non-Locked" if their status isn't REJECTED or INACTIVE
-        return this.status != Status.REJECTED && this.status != Status.INACTIVE; 
+    public boolean isAccountNonLocked() {
+        return this.status != Status.REJECTED && this.status != Status.INACTIVE;
     }
 
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() { 
-        // Logic fix: Only allow login if the user is ACTIVE
-        return this.status == Status.ACTIVE; 
+    public boolean isEnabled() {
+        return this.status == Status.ACTIVE;
     }
 }

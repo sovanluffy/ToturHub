@@ -1,13 +1,8 @@
 package com.rental_api.ServiceBooking.Controller;
 
 import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
-import com.rental_api.ServiceBooking.Dto.Response.ApiResponse;
 import com.rental_api.ServiceBooking.Dto.Response.TutorFullViewResponse;
 import com.rental_api.ServiceBooking.Services.TutorService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -20,57 +15,60 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/tutors")
 @RequiredArgsConstructor
-@Tag(name = "Tutor Management", description = "Endpoints for private profile management and publishing")
 public class TutorController {
 
     private final TutorService tutorService;
 
     /**
-     * UPDATE PROFILE (Saves as Draft)
+     * UPDATE PROFILE
+     * Consumes multipart/form-data to handle:
+     * 1. "data" -> The JSON metadata (Bio, Education, Experience)
+     * 2. "profileImg" -> Single Image file
+     * 3. "videoFile" -> Single Video file
+     * 4. "certificates" -> List of Image files
      */
-    @PutMapping(
-        value = "/profile", 
-        consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    @Operation(summary = "Update Profile", description = "Saves info but keeps it private (isPublic=false).")
-    public ResponseEntity<ApiResponse<String>> updateProfile(
-            @Valid @RequestPart("data") 
-            @Parameter(schema = @Schema(implementation = TutorProfileRequest.class)) 
-            TutorProfileRequest request,
-
+    @PutMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> updateProfile(
+            @RequestPart("data") @Valid TutorProfileRequest data,
             @RequestPart(value = "profileImg", required = false) MultipartFile profileImg,
             @RequestPart(value = "videoFile", required = false) MultipartFile videoFile,
-            @RequestPart(value = "certs", required = false) List<MultipartFile> certs
-    ) {
-        tutorService.updateTutorProfile(request, profileImg, videoFile, certs);
-        return ResponseEntity.ok(ApiResponse.success("Profile saved successfully as draft!"));
+            @RequestPart(value = "certificates", required = false) List<MultipartFile> certificates) {
+
+        tutorService.updateTutorProfile(data, profileImg, videoFile, certificates);
+        return ResponseEntity.ok("Tutor profile updated successfully. Assets uploaded to Cloudinary.");
     }
 
     /**
-     * ✅ NEW: PUBLISH PROFILE (The "Post" Button)
+     * GET LOGGED-IN TUTOR PROFILE
+     */
+    @GetMapping("/my-profile")
+    public ResponseEntity<TutorFullViewResponse> getMyProfile() {
+        return ResponseEntity.ok(tutorService.getMyOwnProfile());
+    }
+
+    /**
+     * GET SPECIFIC TUTOR (Public View)
+     */
+    @GetMapping("/detail/{tutorId}")
+    public ResponseEntity<TutorFullViewResponse> getTutorDetail(@PathVariable Long tutorId) {
+        return ResponseEntity.ok(tutorService.getTutorFullDetail(tutorId));
+    }
+
+    /**
+     * PUBLISH PROFILE (Set isPublic = true)
      */
     @PostMapping("/publish")
-    @Operation(summary = "Post to Public", description = "Set isPublic to true.")
-    public ResponseEntity<ApiResponse<String>> publish() {
+    public ResponseEntity<Void> publish() {
         tutorService.publishProfile();
-        return ResponseEntity.ok(ApiResponse.success("Your profile is now live!"));
-    }
-
-    @PostMapping("/unpublish")
-    @Operation(summary = "Hide Profile", description = "Set isPublic to false. You will vanish from the public list.")
-    public ResponseEntity<ApiResponse<String>> unpublish() {
-        tutorService.unpublishProfile();
-        return ResponseEntity.ok(ApiResponse.success("Your profile is now hidden."));
+        return ResponseEntity.ok().build();
     }
 
     /**
-     * VIEW OWN FULL DETAIL
+     * UNPUBLISH PROFILE (Set isPublic = false)
      */
-    @GetMapping("/{id}/full-view")
-    @Operation(summary = "Get Full View", description = "Returns full details including the isPublic status.")
-    public ResponseEntity<ApiResponse<TutorFullViewResponse>> getFullTutorDetail(@PathVariable Long id) {
-        TutorFullViewResponse response = tutorService.getTutorFullDetail(id);
-        return ResponseEntity.ok(ApiResponse.success(response));
+    @PostMapping("/unpublish")
+    public ResponseEntity<Void> unpublish() {
+        tutorService.unpublishProfile();
+        return ResponseEntity.ok().build();
     }
 }
