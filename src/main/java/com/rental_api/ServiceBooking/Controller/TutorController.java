@@ -1,9 +1,10 @@
 package com.rental_api.ServiceBooking.Controller;
 
 import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
-import com.rental_api.ServiceBooking.Dto.Response.TutorFullViewResponse;
 import com.rental_api.ServiceBooking.Services.TutorService;
-import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/tutors")
@@ -19,56 +21,41 @@ public class TutorController {
 
     private final TutorService tutorService;
 
-    /**
-     * UPDATE PROFILE
-     * Consumes multipart/form-data to handle:
-     * 1. "data" -> The JSON metadata (Bio, Education, Experience)
-     * 2. "profileImg" -> Single Image file
-     * 3. "videoFile" -> Single Video file
-     * 4. "certificates" -> List of Image files
-     */
+    @Operation(summary = "Update tutor profile and upload assets to Cloudinary")
     @PutMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<String> updateProfile(
-            @RequestPart("data") @Valid TutorProfileRequest data,
+    public ResponseEntity<?> updateProfile(
+            @RequestPart("data") TutorProfileRequest data,
             @RequestPart(value = "profileImg", required = false) MultipartFile profileImg,
             @RequestPart(value = "videoFile", required = false) MultipartFile videoFile,
-            @RequestPart(value = "certificates", required = false) List<MultipartFile> certificates) {
-
-        tutorService.updateTutorProfile(data, profileImg, videoFile, certificates);
-        return ResponseEntity.ok("Tutor profile updated successfully. Assets uploaded to Cloudinary.");
+            @RequestPart(value = "certificates", required = false) List<MultipartFile> certificates,
+            @RequestParam(value = "publish", defaultValue = "false") boolean publish) {
+        
+        try {
+            // 1. Save all data (Cloudinary + DB)
+            tutorService.updateTutorProfile(data, profileImg, videoFile, certificates);
+            
+            // 2. Publish if requested
+            if (publish) {
+                tutorService.publishProfile();
+            }
+            
+            return ResponseEntity.ok(Map.of("message", "Profile updated successfully!"));
+            
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
+        }
     }
 
-    /**
-     * GET LOGGED-IN TUTOR PROFILE
-     */
-    @GetMapping("/my-profile")
-    public ResponseEntity<TutorFullViewResponse> getMyProfile() {
-        return ResponseEntity.ok(tutorService.getMyOwnProfile());
-    }
-
-    /**
-     * GET SPECIFIC TUTOR (Public View)
-     */
-    @GetMapping("/detail/{tutorId}")
-    public ResponseEntity<TutorFullViewResponse> getTutorDetail(@PathVariable Long tutorId) {
-        return ResponseEntity.ok(tutorService.getTutorFullDetail(tutorId));
-    }
-
-    /**
-     * PUBLISH PROFILE (Set isPublic = true)
-     */
+    @Operation(summary = "Publish profile to make it visible to students")
     @PostMapping("/publish")
-    public ResponseEntity<Void> publish() {
-        tutorService.publishProfile();
-        return ResponseEntity.ok().build();
-    }
-
-    /**
-     * UNPUBLISH PROFILE (Set isPublic = false)
-     */
-    @PostMapping("/unpublish")
-    public ResponseEntity<Void> unpublish() {
-        tutorService.unpublishProfile();
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> publishOnly() {
+        try {
+            tutorService.publishProfile();
+            return ResponseEntity.ok(Map.of("message", "Profile is now public!"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        }
     }
 }
