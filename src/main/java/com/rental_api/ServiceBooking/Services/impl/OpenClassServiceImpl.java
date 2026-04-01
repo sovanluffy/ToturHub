@@ -2,20 +2,15 @@ package com.rental_api.ServiceBooking.Services.impl;
 
 import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
-import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
 import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.OpenClassService;
-import com.rental_api.ServiceBooking.Specification.OpenClassSpecification;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.*;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -30,9 +25,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     private final SubjectRepository subjectRepository;
     private final LocationRepository locationRepository;
 
-    private static final String UPLOAD_DIR = "uploads/tutor-profiles/";
-
-    // ------------------- CREATE / UPDATE -------------------
+    // ------------------- CREATE -------------------
 
     @Override
     @Transactional
@@ -44,13 +37,13 @@ public class OpenClassServiceImpl implements OpenClassService {
     @Override
     @Transactional
     public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
-        Tutor tutor = getCurrentTutor();
-        if (imageFile != null && !imageFile.isEmpty()) {
-            tutor.setProfilePicture(saveImage(imageFile));
-            tutorRepository.save(tutor);
-        }
-        return saveOrUpdateClass(new OpenClass(), request, tutor);
+        // Optional: Handle file upload logic here (e.g., Cloudinary)
+        OpenClassResponse response = createClass(request);
+        // You can store image URL in entity if needed
+        return response;
     }
+
+    // ------------------- UPDATE -------------------
 
     @Override
     @Transactional
@@ -135,6 +128,8 @@ public class OpenClassServiceImpl implements OpenClassService {
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("EEE, MMM dd");
 
+        String tutorImage = (t.getMedia() != null) ? t.getMedia().getProfileImageUrl() : null;
+
         return OpenClassResponse.builder()
                 .classId(entity.getId())
                 .title(entity.getTitle())
@@ -142,7 +137,7 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .status(entity.getStatus().name())
                 .tutorId(t.getId())
                 .tutorName(t.getUser().getFullname())
-                .tutorImage(t.getProfilePicture())
+                .tutorImage(tutorImage)
                 .tutorRating(t.getAverageRating())
                 .yearsOfExperience(t.getYearsOfExperience())
                 .location(entity.getLocation().getDistrict() + ", " + entity.getLocation().getCity())
@@ -179,41 +174,6 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .collect(Collectors.toList());
     }
 
-    // ------------------- PUBLIC TUTOR CARDS -------------------
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<TutorCardResponse> getAllPublicCards() {
-        return tutorRepository.findAll().stream()
-                .filter(Tutor::isPublic)
-                .map(tutor -> {
-                    List<String> subjects = tutor.getOpenClasses().stream()
-                            .flatMap(c -> c.getSubjects().stream())
-                            .map(Subject::getName)
-                            .distinct()
-                            .collect(Collectors.toList());
-
-                    String location = tutor.getOpenClasses().isEmpty() ? "" :
-                            tutor.getOpenClasses().get(0).getLocation().getDistrict() + ", " +
-                            tutor.getOpenClasses().get(0).getLocation().getCity();
-
-                    int totalOpenClasses = tutor.getOpenClasses().size();
-
-                    return TutorCardResponse.builder()
-                            .tutorId(tutor.getId())
-                            .fullname(tutor.getUser().getFullname())
-                            .profilePicture(tutor.getProfilePicture())
-                            .rating(tutor.getAverageRating())
-                            .studentsTaught(tutor.getTotalStudentsTaught())
-                            .bio(tutor.getBio())
-                            .subjects(subjects)
-                            .location(location)
-                            .totalOpenClasses(totalOpenClasses)
-                            .build();
-                })
-                .collect(Collectors.toList());
-    }
-
     // ------------------- DELETE -------------------
 
     @Override
@@ -234,17 +194,5 @@ public class OpenClassServiceImpl implements OpenClassService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return tutorRepository.findByUserEmail(email)
                 .orElseThrow(() -> new RuntimeException("Tutor record not found for: " + email));
-    }
-
-    private String saveImage(MultipartFile file) {
-        try {
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            Path path = Paths.get(UPLOAD_DIR + fileName);
-            Files.createDirectories(path.getParent());
-            Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
-            return "/" + UPLOAD_DIR + fileName;
-        } catch (IOException e) {
-            throw new RuntimeException("File upload failed", e);
-        }
     }
 }

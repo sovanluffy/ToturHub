@@ -3,14 +3,13 @@ package com.rental_api.ServiceBooking.Services.impl;
 import com.rental_api.ServiceBooking.Dto.Request.LoginRequest;
 import com.rental_api.ServiceBooking.Dto.Request.RegisterRequest;
 import com.rental_api.ServiceBooking.Dto.Response.AuthResponse;
-import com.rental_api.ServiceBooking.Entity.Role;
-import com.rental_api.ServiceBooking.Entity.User;
-import com.rental_api.ServiceBooking.Entity.Tutor;
+import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Exception.ConflictException;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.RoleRepository;
 import com.rental_api.ServiceBooking.Repository.UserRepository;
 import com.rental_api.ServiceBooking.Repository.TutorRepository;
+import com.rental_api.ServiceBooking.Repository.LocationRepository;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 import com.rental_api.ServiceBooking.Security.JwtUtils;
@@ -35,14 +34,18 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final TutorRepository tutorRepository;
+    private final LocationRepository locationRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
-    private final CloudinaryService cloudinaryService; // This will now use your CloudinaryServiceImpl
+    private final CloudinaryService cloudinaryService;
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
     );
 
+    // -----------------------------
+    // REGISTER
+    // -----------------------------
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request, MultipartFile avatar) {
@@ -52,41 +55,43 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException("Email already exists");
         }
 
-        // 1. Upload avatar to Cloudinary
+        // Upload avatar
         String avatarUrl = null;
         if (avatar != null && !avatar.isEmpty()) {
-            try {
-                // This call goes to the cloud and returns a secure HTTPS URL
-                avatarUrl = cloudinaryService.uploadFile(avatar);
-                log.info("Avatar successfully hosted on Cloudinary: {}", avatarUrl);
-            } catch (Exception e) {
-                log.error("Cloudinary upload failed during registration", e);
-                throw new RuntimeException("Could not process avatar upload");
-            }
+            avatarUrl = cloudinaryService.uploadFile(avatar);
         }
 
-        // 2. Create User Entity with the Cloud URL
+        // Assign location if provided
+        Location location = null;
+        if (request.getLocationId() != null) {
+            location = locationRepository.findById(request.getLocationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Location not found: " + request.getLocationId()));
+        }
+
+        // Create User
         User user = User.builder()
                 .fullname(request.getFullname())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
                 .address(request.getAddress())
-                .location(request.getLocation())
-                .avatarUrl(avatarUrl) // Saving the https:// link here
+                .avatarUrl(avatarUrl)
                 .status(User.Status.ACTIVE)
                 .build();
 
-        // Assign default role
+        // Assign default student role
         Role studentRole = roleRepository.findByName("student")
                 .orElseThrow(() -> new ResourceNotFoundException("Student role not found"));
         user.setRoles(Set.of(studentRole));
 
         user = userRepository.save(user);
 
-        return buildAuthResponse(user, "User registered successfully with Cloudinary storage");
+        return buildAuthResponse(user, "User registered successfully");
     }
 
+    // -----------------------------
+    // LOGIN
+    // -----------------------------
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
@@ -102,7 +107,9 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(user, "Login successful");
     }
 
-    // --- OTHER METHODS (Tutor Request, etc.) ---
+    // -----------------------------
+    // REQUEST TUTOR
+    // -----------------------------
     @Override
     @Transactional
     public AuthResponse requestTutor(Long userId) {
@@ -127,13 +134,33 @@ public class AuthServiceImpl implements AuthService {
             tutorRepository.save(tutorProfile);
         }
 
-        return buildAuthResponse(user, "Tutor request submitted.");
+        return buildAuthResponse(user, "Tutor request submitted");
     }
 
-    @Override @Transactional public void approveTutor(Long userId) { /* Logic */ }
-    @Override @Transactional public void rejectTutor(Long userId) { /* Logic */ }
+    // -----------------------------
+    // APPROVE/REJECT TUTOR (stub)
+    // -----------------------------
+    @Override
+    @Transactional
+    public void approveTutor(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setStatus(User.Status.ACTIVE);
+        userRepository.save(user);
+    }
 
-    // --- HELPERS ---
+    @Override
+    @Transactional
+    public void rejectTutor(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setStatus(User.Status.REJECTED);
+        userRepository.save(user);
+    }
+
+    // -----------------------------
+    // HELPERS
+    // -----------------------------
     private void validateEmail(String email) {
         if (!EMAIL_PATTERN.matcher(email).matches()) {
             throw new ConflictException("Invalid email format");
@@ -150,7 +177,7 @@ public class AuthServiceImpl implements AuthService {
                 .userId(user.getId())
                 .fullname(user.getFullname())
                 .email(user.getEmail())
-                .avatarUrl(user.getAvatarUrl()) 
+                .avatarUrl(user.getAvatarUrl())
                 .message(message)
                 .token(token)
                 .roles(roleNames)

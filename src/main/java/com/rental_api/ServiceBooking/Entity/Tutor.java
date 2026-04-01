@@ -7,12 +7,13 @@ import java.util.List;
 
 @Entity
 @Table(name = "tutors")
-@Getter 
-@Setter 
-@Builder 
-@NoArgsConstructor 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class Tutor {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,38 +23,38 @@ public class Tutor {
     private User user;
 
     private String bio;
-    private String profilePicture; 
 
-    // ✅ ADD THIS FIELD TO RESOLVE THE ERROR
     @Builder.Default
     @Column(name = "years_of_experience")
-    private Integer yearsOfExperience = 0; 
+    private Integer yearsOfExperience = 0;
 
-    // ✅ Relationship to the new Media Entity
-    @OneToOne(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
-    private TutorMedia media;
+    // Media (profile image, video, certificates)
+   @OneToOne(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
+private TutorMedia media;
 
-    // --- Professional History Timelines ---
+    // Education history
     @Builder.Default
     @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Education> education = new ArrayList<>();
-
+    
+    // Experience history
     @Builder.Default
     @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Experience> experience = new ArrayList<>();
 
-    // --- "Post More" Logic ---
+    // Open classes
     @Builder.Default
     @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL)
     private List<OpenClass> openClasses = new ArrayList<>();
 
-    // --- Global Stats ---
+    // Stats
     @Builder.Default
     private Double averageRating = 0.0;
-    
+
     @Builder.Default
     private Integer totalStudentsTaught = 0;
 
+    // Subjects
     @Builder.Default
     @ManyToMany
     @JoinTable(
@@ -63,10 +64,11 @@ public class Tutor {
     )
     private List<Subject> subjects = new ArrayList<>();
 
+    // Reviews
     @Builder.Default
     @OneToMany(mappedBy = "tutor")
     private List<Review> reviews = new ArrayList<>();
 
     @Column(name = "is_public", nullable = false)
-    private boolean isPublic = false; 
+    private boolean isPublic = false;
 }
