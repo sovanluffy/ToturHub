@@ -148,7 +148,6 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .location(entity.getLocation().getDistrict() + ", " + entity.getLocation().getCity())
                 .specificAddress(entity.getSpecificAddress())
                 .subjects(entity.getSubjects().stream().map(Subject::getName).collect(Collectors.toList()))
-                .pricing(entity.getPriceOptions()) // Internal pricing, not shown in card
                 .availableSlots(entity.getSchedules().stream()
                         .filter(s -> !s.isBooked())
                         .sorted(Comparator.comparing(ClassSchedule::getStartTime))
@@ -164,7 +163,6 @@ public class OpenClassServiceImpl implements OpenClassService {
 
     // ------------------- SEARCH / FIND -------------------
 
-   
     @Override
     @Transactional(readOnly = true)
     public OpenClassResponse getClassDetails(Long id) {
@@ -189,14 +187,12 @@ public class OpenClassServiceImpl implements OpenClassService {
         return tutorRepository.findAll().stream()
                 .filter(Tutor::isPublic)
                 .map(tutor -> {
-                    // Subjects from tutor's open classes
                     List<String> subjects = tutor.getOpenClasses().stream()
                             .flatMap(c -> c.getSubjects().stream())
                             .map(Subject::getName)
                             .distinct()
                             .collect(Collectors.toList());
 
-                    // Location: use first class location if available
                     String location = tutor.getOpenClasses().isEmpty() ? "" :
                             tutor.getOpenClasses().get(0).getLocation().getDistrict() + ", " +
                             tutor.getOpenClasses().get(0).getLocation().getCity();
