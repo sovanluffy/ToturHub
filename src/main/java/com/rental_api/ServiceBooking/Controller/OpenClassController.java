@@ -49,17 +49,7 @@ public class OpenClassController {
     /**
      * ✅ SEARCH: Advanced filtering (City, District, Subject, Price, Experience)
      */
-    @GetMapping("/search")
-    public ResponseEntity<List<OpenClassResponse>> search(
-            @RequestParam(required = false) String city,
-            @RequestParam(required = false) String district,
-            @RequestParam(required = false) Long subjectId,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Integer minExp
-    ) {
-        return ResponseEntity.ok(openClassService.searchClasses(city, district, subjectId, maxPrice, minExp));
-    }
-
+  
     /**
      * ✅ GET DETAILS: View full class details including generated slots
      */

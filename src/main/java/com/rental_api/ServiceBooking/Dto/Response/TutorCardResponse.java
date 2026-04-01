@@ -1,6 +1,8 @@
 package com.rental_api.ServiceBooking.Dto.Response;
 
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -13,10 +15,8 @@ public class TutorCardResponse {
     private String profilePicture;
     private Double rating;
     private Integer studentsTaught;
-    private boolean isPublic;
-    // Top 2 specialties or degrees to show on the card
-    private List<String> highlights; 
-    
-    // Starting price for the tutor's classes
-    private Double startingPrice; 
+    private String bio;
+    private List<String> subjects;
+    private String location;
+    private Integer totalOpenClasses; // new field
 }
