@@ -3,8 +3,6 @@ package com.rental_api.ServiceBooking.Controller;
 import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
 import com.rental_api.ServiceBooking.Services.TutorService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -28,19 +26,21 @@ public class TutorController {
             @RequestPart(value = "profileImg", required = false) MultipartFile profileImg,
             @RequestPart(value = "videoFile", required = false) MultipartFile videoFile,
             @RequestPart(value = "certificates", required = false) List<MultipartFile> certificates,
-            @RequestParam(value = "publish", defaultValue = "false") boolean publish) {
-        
+            @RequestParam(value = "publish", defaultValue = "false") boolean publish
+    ) {
         try {
-            // 1. Save all data (Cloudinary + DB)
+            // 1. Save profile data (Cloudinary + DB)
             tutorService.updateTutorProfile(data, profileImg, videoFile, certificates);
-            
-            // 2. Publish if requested
+
+            // 2. Publish/unpublish if requested
             if (publish) {
                 tutorService.publishProfile();
+            } else {
+                tutorService.unpublishProfile();
             }
-            
+
             return ResponseEntity.ok(Map.of("message", "Profile updated successfully!"));
-            
+
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
@@ -50,12 +50,27 @@ public class TutorController {
 
     @Operation(summary = "Publish profile to make it visible to students")
     @PostMapping("/publish")
-    public ResponseEntity<?> publishOnly() {
+    public ResponseEntity<?> publishProfile() {
         try {
             tutorService.publishProfile();
             return ResponseEntity.ok(Map.of("message", "Profile is now public!"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Unpublish profile to make it invisible to students")
+    @PostMapping("/unpublish")
+    public ResponseEntity<?> unpublishProfile() {
+        try {
+            tutorService.unpublishProfile();
+            return ResponseEntity.ok(Map.of("message", "Profile is now unpublished!"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
         }
     }
 }
