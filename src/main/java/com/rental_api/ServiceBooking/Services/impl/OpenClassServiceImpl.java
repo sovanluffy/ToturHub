@@ -91,8 +91,6 @@ public class OpenClassServiceImpl implements OpenClassService {
         // Generate Schedules (Orphan Removal logic deletes old records)
         if (entity.getSchedules() != null) {
             entity.getSchedules().clear();
-        } else {
-            entity.setSchedules(new ArrayList<>());
         }
 
         if (request.getSchedules() != null) {

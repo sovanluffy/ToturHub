@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest.ScheduleConfig;
+
 @Entity
 @Table(name = "open_classes")
 @Getter 
@@ -62,10 +64,9 @@ public class OpenClass {
     @Enumerated(EnumType.STRING)
     private Set<LearningMode> learningModes;
 
-    // --- 📅 SCHEDULES (One-to-Many) ---
     @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<ClassSchedule> schedules = new ArrayList<>();
+private List<scheduleConfig> schedules = new ArrayList<>();
+
 
     // --- 🕒 METADATA ---
     private LocalDateTime createdAt;
