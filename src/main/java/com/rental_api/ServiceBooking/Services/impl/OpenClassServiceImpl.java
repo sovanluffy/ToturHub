@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.*;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +31,8 @@ public class OpenClassServiceImpl implements OpenClassService {
     private final LocationRepository locationRepository;
 
     private static final String UPLOAD_DIR = "uploads/tutor-profiles/";
+
+    // ------------------- CREATE / UPDATE -------------------
 
     @Override
     @Transactional
@@ -65,8 +66,6 @@ public class OpenClassServiceImpl implements OpenClassService {
         return saveOrUpdateClass(existing, request, tutor);
     }
 
-    // --- PRIVATE HELPERS ---
-
     private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest request, Tutor tutor) {
         Location location = locationRepository.findById(request.getLocationId())
                 .orElseThrow(() -> new RuntimeException("Location not found with ID: " + request.getLocationId()));
@@ -80,7 +79,7 @@ public class OpenClassServiceImpl implements OpenClassService {
         entity.setSubjects(subjectRepository.findAllById(request.getSubjectIds()));
         entity.setStatus(OpenClass.ClassStatus.OPEN);
 
-        // Map Learning Modes
+        // Learning Modes
         if (request.getLearningModes() != null) {
             Set<OpenClass.LearningMode> modes = request.getLearningModes().stream()
                     .map(mode -> OpenClass.LearningMode.valueOf(mode.toUpperCase()))
@@ -88,7 +87,7 @@ public class OpenClassServiceImpl implements OpenClassService {
             entity.setLearningModes(modes);
         }
 
-        // Generate Schedules (Orphan Removal logic deletes old records)
+        // Schedules
         if (entity.getSchedules() != null) {
             entity.getSchedules().clear();
         } else {
@@ -149,59 +148,91 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .location(entity.getLocation().getDistrict() + ", " + entity.getLocation().getCity())
                 .specificAddress(entity.getSpecificAddress())
                 .subjects(entity.getSubjects().stream().map(Subject::getName).collect(Collectors.toList()))
-                .pricing(entity.getPriceOptions())
+                .pricing(entity.getPriceOptions()) // Internal pricing, not shown in card
                 .availableSlots(entity.getSchedules().stream()
                         .filter(s -> !s.isBooked())
                         .sorted(Comparator.comparing(ClassSchedule::getStartTime))
                         .map(s -> OpenClassResponse.ScheduleDto.builder()
                                 .id(s.getId())
-                                .timeRange(s.getStartTime().format(timeFmt) + " - " + 
-                                           s.getEndTime().format(timeFmt) + " (" + 
+                                .timeRange(s.getStartTime().format(timeFmt) + " - " +
+                                           s.getEndTime().format(timeFmt) + " (" +
                                            s.getStartTime().format(dateFmt) + ")")
                                 .build())
                         .collect(Collectors.toList()))
                 .build();
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<OpenClassResponse> searchClasses(String city, String district, Long subjectId, BigDecimal maxPrice, Integer minExp) {
-        Specification<OpenClass> spec = OpenClassSpecification.getFilteredClasses(city, district, subjectId, maxPrice, minExp);
-        return openClassRepository.findAll(spec).stream().map(this::mapToResponse).collect(Collectors.toList());
-    }
+    // ------------------- SEARCH / FIND -------------------
 
+   
     @Override
     @Transactional(readOnly = true)
     public OpenClassResponse getClassDetails(Long id) {
-        return openClassRepository.findById(id).map(this::mapToResponse)
+        return openClassRepository.findById(id)
+                .map(this::mapToResponse)
                 .orElseThrow(() -> new RuntimeException("Class not found"));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<TutorCardResponse> getAllPublicCards() {
-        return tutorRepository.findAll().stream().filter(Tutor::isPublic)
-                .map(t -> TutorCardResponse.builder()
-                        .tutorId(t.getId()).fullname(t.getUser().getFullname()).profilePicture(t.getProfilePicture())
-                        .rating(t.getAverageRating()).studentsTaught(t.getTotalStudentsTaught()).build())
+    public List<OpenClassResponse> findByTutorId(Long tutorId) {
+        return openClassRepository.findByTutorId(tutorId).stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    // ------------------- PUBLIC TUTOR CARDS -------------------
+
     @Override
     @Transactional(readOnly = true)
-    public List<OpenClassResponse> findByTutorId(Long tutorId) {
-        return openClassRepository.findByTutorId(tutorId).stream().map(this::mapToResponse).collect(Collectors.toList());
+    public List<TutorCardResponse> getAllPublicCards() {
+        return tutorRepository.findAll().stream()
+                .filter(Tutor::isPublic)
+                .map(tutor -> {
+                    // Subjects from tutor's open classes
+                    List<String> subjects = tutor.getOpenClasses().stream()
+                            .flatMap(c -> c.getSubjects().stream())
+                            .map(Subject::getName)
+                            .distinct()
+                            .collect(Collectors.toList());
+
+                    // Location: use first class location if available
+                    String location = tutor.getOpenClasses().isEmpty() ? "" :
+                            tutor.getOpenClasses().get(0).getLocation().getDistrict() + ", " +
+                            tutor.getOpenClasses().get(0).getLocation().getCity();
+
+                    int totalOpenClasses = tutor.getOpenClasses().size();
+
+                    return TutorCardResponse.builder()
+                            .tutorId(tutor.getId())
+                            .fullname(tutor.getUser().getFullname())
+                            .profilePicture(tutor.getProfilePicture())
+                            .rating(tutor.getAverageRating())
+                            .studentsTaught(tutor.getTotalStudentsTaught())
+                            .bio(tutor.getBio())
+                            .subjects(subjects)
+                            .location(location)
+                            .totalOpenClasses(totalOpenClasses)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
+
+    // ------------------- DELETE -------------------
 
     @Override
     @Transactional
     public void deleteClass(Long id) {
-        OpenClass entity = openClassRepository.findById(id).orElseThrow(() -> new RuntimeException("Class not found"));
-        if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) throw new RuntimeException("Unauthorized");
+        OpenClass entity = openClassRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Class not found"));
+
+        if (!entity.getTutor().getId().equals(getCurrentTutor().getId()))
+            throw new RuntimeException("Unauthorized");
+
         openClassRepository.delete(entity);
     }
 
-    // --- SECURE HELPERS ---
+    // ------------------- HELPERS -------------------
 
     private Tutor getCurrentTutor() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
