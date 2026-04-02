@@ -9,6 +9,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -16,40 +17,52 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "bookings")
 @Data
+@Getter
+@Setter
+@NoArgsConstructor // Good practice to be explicit
+@AllArgsConstructor
 public class BookingClass {
     @Id 
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "class_id")
-    @Column(name = "class_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_id", nullable = false)
     private OpenClass openClass;
 
-   @ManyToOne
-    @JoinColumn(name = "schedule_config_id", nullable = false) // Changed type to scheduleConfig
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "schedule_config_id", nullable = false)
     private ScheduleConfig scheduleConfig; 
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    @Column(name = "user_id", nullable = false)
+    // FIX 1: Satisfy the "student_id" constraint
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "student_id", nullable = false) 
     private User user;
 
-    @Column(length = 2000, name = "note")
+    // FIX 2: Satisfy the "tutor_id" constraint
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tutor_id", nullable = false)
+    private Tutor tutor;
+
+    @Column(length = 2000)
     private String note;
     
     @Enumerated(EnumType.STRING)
-    private BookingStatus status; // PENDING, CONFIRMED, CANCELLED
+    private BookingStatus status; 
 
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now();
     }
 }

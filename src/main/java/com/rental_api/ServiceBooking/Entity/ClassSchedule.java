@@ -7,9 +7,9 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
-@Builder
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class ClassSchedule {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

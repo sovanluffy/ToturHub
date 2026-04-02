@@ -1,12 +1,19 @@
 package com.rental_api.ServiceBooking.Dto.Request;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 @Data
+@NoArgsConstructor // Crucial for Jackson!
+@AllArgsConstructor
+@Builder
 public class OpenClassRequest {
     private String title;
     private String description;
@@ -23,6 +30,9 @@ public class OpenClassRequest {
     private List<ScheduleConfig> schedules;
 
     @Data
+    @NoArgsConstructor // ADD THIS
+    @AllArgsConstructor // ADD THIS
+    @Builder
     public static class ScheduleConfig {
         private String scheduleType; // "DAILY", "WEEKEND", "WEEKDAY"
         private LocalDate startDate;
@@ -31,6 +41,9 @@ public class OpenClassRequest {
     }
 
     @Data
+    @NoArgsConstructor // ADD THIS
+    @AllArgsConstructor // ADD THIS
+    @Builder
     public static class TimeRangeRequest {
         private String startTime; // "08:00"
         private String endTime;   // "10:00"

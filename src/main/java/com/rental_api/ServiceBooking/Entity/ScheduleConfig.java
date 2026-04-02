@@ -2,35 +2,54 @@
 
     import java.time.LocalDate;
     import java.time.LocalTime;
+    import java.util.ArrayList;
     import java.util.List;
 
-    import jakarta.persistence.CascadeType;
-    import jakarta.persistence.Entity;
-    import jakarta.persistence.GeneratedValue;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
     import jakarta.persistence.GenerationType;
     import jakarta.persistence.Id;
     import jakarta.persistence.JoinColumn;
     import jakarta.persistence.ManyToOne;
     import jakarta.persistence.OneToMany;
-    import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 
-    @Entity
-    @Data
-    public class ScheduleConfig {
-        @Id 
-        @GeneratedValue(strategy = GenerationType.IDENTITY)
-        private Long id;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-        private String scheduleType; // "WEEKEND", "DAILY"
-        private LocalDate startDate;
-        private LocalDate endDate;
-        private LocalTime startTime;
-        private LocalTime endTime;
+@Entity
+@Getter // Explicitly add this
+@Setter // Explicitly add this
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ScheduleConfig {
+    @Id 
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-        @ManyToOne
-        @JoinColumn(name = "open_class_id")
-        private OpenClass openClass;
+    // Ensure this is EXACTLY 'scheduleType'
+    private String scheduleType; 
+    
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private LocalTime startTime;
+    private LocalTime endTime;
 
-    @OneToMany(mappedBy = "config", cascade = CascadeType.ALL)
-        private List<ClassSchedule> individualSlots;
-    }
+    @ManyToOne
+    @JoinColumn(name = "open_class_id")
+    private OpenClass openClass;
+
+    @ElementCollection
+    @CollectionTable(name = "schedule_config_times", joinColumns = @JoinColumn(name = "config_id"))
+    private List<TimeRange> timeRanges = new ArrayList<>();
+
+    @OneToMany(mappedBy = "config", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ClassSchedule> individualSlots = new ArrayList<>();
+}
