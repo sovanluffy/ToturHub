@@ -32,15 +32,18 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-                // Enable CORS
+                // ✅ CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
 
-                // Authorization
+                // ✅ Authorization
                 .authorizeHttpRequests(auth -> auth
 
-                        // Allow preflight requests
+                        // Allow preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // ✅ PUBLIC: Locations API (FIX 401)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
 
                         // Auth endpoints
                         .requestMatchers(
@@ -70,11 +73,6 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
-
-                        // FIXED: your endpoint
-                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/public-cards").permitAll()
-
-                        // or allow all open classes
                         .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
 
                         // Admin
@@ -89,22 +87,22 @@ public class SecurityConfiguration {
                         // Student
                         .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
 
-                        // Others require auth
+                        // Others require authentication
                         .anyRequest().authenticated()
                 )
 
-                // Stateless JWT
+                // ✅ Stateless JWT
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // Provider
+                // ✅ Provider
                 .authenticationProvider(authenticationProvider)
 
-                // JWT Filter
+                // ✅ JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-                // Exception handler
+                // ✅ Exception handling
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler)
@@ -113,14 +111,20 @@ public class SecurityConfiguration {
         return http.build();
     }
 
-    // Global CORS
+    // ✅ CORS CONFIG (FIXED)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // allow all http origins
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:5181",
+                "http://localhost:8080", // Swagger
+                "https://toturhub-dev.onrender.com"
+        ));
+
         configuration.setAllowedMethods(List.of(
                 "GET",
                 "POST",
@@ -129,6 +133,7 @@ public class SecurityConfiguration {
                 "PATCH",
                 "OPTIONS"
         ));
+
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -139,4 +144,3 @@ public class SecurityConfiguration {
         return source;
     }
 }
-

@@ -2,6 +2,7 @@ package com.rental_api.ServiceBooking.Script;
 
 import com.rental_api.ServiceBooking.Entity.Role;
 import com.rental_api.ServiceBooking.Entity.Tutor;
+import com.rental_api.ServiceBooking.Entity.TutorMedia;
 import com.rental_api.ServiceBooking.Entity.User;
 import com.rental_api.ServiceBooking.Repository.RoleRepository;
 import com.rental_api.ServiceBooking.Repository.TutorRepository;
@@ -21,11 +22,11 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final TutorRepository tutorRepository; // Added
+    private final TutorRepository tutorRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    @Transactional // Ensures atomicity for multiple table inserts
+    @Transactional
     public void run(String... args) throws Exception {
         seedRoles();
         seedDefaultTutor();
@@ -43,11 +44,9 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    
-
     private void seedDefaultTutor() {
         String tutorEmail = "tutor@test.com";
-        
+
         if (userRepository.findByEmail(tutorEmail).isEmpty()) {
             Role tutorRole = roleRepository.findByName("tutor").orElseThrow();
 
@@ -60,19 +59,28 @@ public class DataInitializer implements CommandLineRunner {
                     .status(User.Status.ACTIVE)
                     .roles(new HashSet<>(Set.of(tutorRole)))
                     .build();
-
             userRepository.save(tutorUser);
 
-            // 2. Create the Tutor Profile Entity (Linked to User)
+            // 2. Create the Tutor Profile Entity
             Tutor tutorProfile = Tutor.builder()
                     .user(tutorUser)
                     .bio("Hi! I am a professional Mathematics tutor with 10 years experience.")
-                    .profilePicture("https://api.dicebear.com/7.x/avataaars/svg?seed=John")
                     .averageRating(5.0)
                     .totalStudentsTaught(0)
+                    .isPublic(true)
                     .build();
 
+            // 3. Create TutorMedia and link it to Tutor
+            TutorMedia media = TutorMedia.builder()
+                    .profileImageUrl("https://api.dicebear.com/7.x/avataaars/svg?seed=John")
+                    .tutor(tutorProfile)
+                    .build();
+
+            tutorProfile.setMedia(media);
+
+            // Save tutor (cascades media)
             tutorRepository.save(tutorProfile);
+
             System.out.println("✅ Tutor user and profile seeded: " + tutorEmail);
         }
     }

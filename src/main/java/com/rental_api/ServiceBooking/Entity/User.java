@@ -29,9 +29,13 @@ public class User implements UserDetails {
     private String password;
     private String phone;
     private String address;
-    private String location;
 
-    // ✅ Avatar URL for Cloudinary
+    // ❌ remove location from user if using Location entity
+    // private String location;
+        private Long locationId; // <-- ADD THIS
+
+
+    // Avatar URL for Cloudinary
     private String avatarUrl;
 
     @Enumerated(EnumType.STRING)
@@ -39,9 +43,7 @@ public class User implements UserDetails {
     @Builder.Default
     private Status status = Status.ACTIVE;
 
-    public enum Status {
-        ACTIVE, PENDING, REJECTED, INACTIVE, DELETED
-    }
+    public enum Status { ACTIVE, PENDING, REJECTED, INACTIVE, DELETED }
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

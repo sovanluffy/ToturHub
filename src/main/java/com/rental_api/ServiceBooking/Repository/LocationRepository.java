@@ -8,9 +8,9 @@ import java.util.List;
 @Repository
 public interface LocationRepository extends JpaRepository<Location, Long> {
     
-    // Custom query to find locations by city (e.g., all districts in Phnom Penh)
+    // Find all locations by city (e.g., "Phnom Penh")
     List<Location> findByCity(String city);
     
-    // Custom query to find a specific district
+    // Find a specific district (e.g., "BKK1")
     List<Location> findByDistrict(String district);
 }

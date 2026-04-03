@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.*;
@@ -31,18 +30,44 @@ public class OpenClassServiceImpl implements OpenClassService {
 
     private static final String UPLOAD_DIR = "uploads/tutor-profiles/";
 
+    // ------------------- CREATE -------------------
+
     @Override
     @Transactional
-    public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
+    public OpenClassResponse createClass(OpenClassRequest request) {
         Tutor tutor = getCurrentTutor();
-        if (imageFile != null && !imageFile.isEmpty()) {
-            tutor.setProfilePicture(saveImage(imageFile));
-            tutorRepository.save(tutor);
-        }
         return saveOrUpdateClass(new OpenClass(), request, tutor);
     }
 
-private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest request, Tutor tutor) {
+    @Override
+    @Transactional
+    public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
+        
+        Tutor tutor = getCurrentTutor();
+        OpenClass entity = new OpenClass();
+        // Set image URL to entity if your entity has an image field
+        // entity.setImageUrl(imageUrl); 
+        
+        return saveOrUpdateClass(entity, request, tutor);
+    }
+
+    // ------------------- UPDATE -------------------
+
+    @Override
+    @Transactional
+    public OpenClassResponse updateClass(Long id, OpenClassRequest request) {
+        OpenClass existing = openClassRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Class not found"));
+
+        Tutor tutor = getCurrentTutor();
+        if (!existing.getTutor().getId().equals(tutor.getId())) {
+            throw new RuntimeException("Unauthorized: You do not own this class");
+        }
+
+        return saveOrUpdateClass(existing, request, tutor);
+    }
+
+    private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest request, Tutor tutor) {
         Location location = locationRepository.findById(request.getLocationId())
                 .orElseThrow(() -> new RuntimeException("Location not found ID: " + request.getLocationId()));
 
@@ -62,8 +87,7 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
             entity.setLearningModes(modes);
         }
 
-        // --- FIXED: CLEARING AND REFRESHING SCHEDULES ---
-        // We clear the list so orphanRemoval = true can delete old slots in the DB
+        // Clear and refresh schedules to avoid duplicates
         if (entity.getSchedules() != null) {
             entity.getSchedules().clear(); 
         } else {
@@ -76,67 +100,58 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
             }
         }
 
-        // Save the entity - because of CascadeType.ALL, this saves Configs and Slots automatically
         return mapToResponse(openClassRepository.save(entity));
     }
 
- private void generateIndividualSlots(OpenClass openClass, OpenClassRequest.ScheduleConfig dto) {
-    // 1. Create and populate the Config object
-    ScheduleConfig config = new ScheduleConfig();
-    
-    // Set the string directly from the DTO
-    String typeStr = dto.getScheduleType() != null ? dto.getScheduleType().toUpperCase() : "DAILY";
-    config.setScheduleType(typeStr); 
-    
-    config.setStartDate(dto.getStartDate());
-    config.setEndDate(dto.getEndDate());
-    config.setOpenClass(openClass);
-
-    // 2. Set the 'Main' times for the config table (to avoid [null] in image 2)
-    if (dto.getTimeRanges() != null && !dto.getTimeRanges().isEmpty()) {
-        config.setStartTime(parseTimeSafely(dto.getTimeRanges().get(0).getStartTime()));
-        config.setEndTime(parseTimeSafely(dto.getTimeRanges().get(0).getEndTime()));
-    }
-
-    // 3. Generate the Slots
-    LocalDate current = dto.getStartDate();
-    while (!current.isAfter(dto.getEndDate())) {
-        DayOfWeek day = current.getDayOfWeek();
-        boolean isWeekend = (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY);
+    private void generateIndividualSlots(OpenClass openClass, OpenClassRequest.ScheduleConfig dto) {
+        ScheduleConfig config = new ScheduleConfig();
+        String typeStr = dto.getScheduleType() != null ? dto.getScheduleType().toUpperCase() : "DAILY";
         
-        // Use the local variable 'typeStr' to avoid the getter error during logic
-        boolean shouldAdd = switch (typeStr) {
-            case "DAILY"   -> true;
-            case "WEEKEND" -> isWeekend;
-            case "WEEKDAY" -> !isWeekend;
-            case "ONCE"    -> current.equals(dto.getStartDate());
-            default        -> false;
-        };
+        config.setScheduleType(typeStr); 
+        config.setStartDate(dto.getStartDate());
+        config.setEndDate(dto.getEndDate());
+        config.setOpenClass(openClass);
 
-        if (shouldAdd) {
-            for (OpenClassRequest.TimeRangeRequest trDto : dto.getTimeRanges()) {
-                LocalTime startT = parseTimeSafely(trDto.getStartTime());
-                LocalTime endT = parseTimeSafely(trDto.getEndTime());
-
-                ClassSchedule slot = ClassSchedule.builder()
-                        .startTime(current.atTime(startT))
-                        .endTime(current.atTime(endT))
-                        .openClass(openClass)
-                        .config(config) // THIS LINE fills the schedule_config_id column
-                        .isBooked(false)
-                        .type(mapToScheduleType(typeStr))
-                        .build();
-                
-                config.getIndividualSlots().add(slot);
-            }
+        if (dto.getTimeRanges() != null && !dto.getTimeRanges().isEmpty()) {
+            config.setStartTime(parseTimeSafely(dto.getTimeRanges().get(0).getStartTime()));
+            config.setEndTime(parseTimeSafely(dto.getTimeRanges().get(0).getEndTime()));
         }
-        current = current.plusDays(1);
-    }
-    
-    openClass.getSchedules().add(config);
-}
 
-    // Helper to prevent DateTimeParseException if user sends "8:00" instead of "08:00"
+        LocalDate current = dto.getStartDate();
+        while (!current.isAfter(dto.getEndDate())) {
+            DayOfWeek day = current.getDayOfWeek();
+            boolean isWeekend = (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY);
+            
+            boolean shouldAdd = switch (typeStr) {
+                case "DAILY"   -> true;
+                case "WEEKEND" -> isWeekend;
+                case "WEEKDAY" -> !isWeekend;
+                case "ONCE"    -> current.equals(dto.getStartDate());
+                default        -> false;
+            };
+
+            if (shouldAdd) {
+                for (OpenClassRequest.TimeRangeRequest trDto : dto.getTimeRanges()) {
+                    LocalTime startT = parseTimeSafely(trDto.getStartTime());
+                    LocalTime endT = parseTimeSafely(trDto.getEndTime());
+
+                    ClassSchedule slot = ClassSchedule.builder()
+                            .startTime(current.atTime(startT))
+                            .endTime(current.atTime(endT))
+                            .openClass(openClass)
+                            .config(config)
+                            .isBooked(false)
+                            .type(mapToScheduleType(typeStr))
+                            .build();
+                    
+                    config.getIndividualSlots().add(slot);
+                }
+            }
+            current = current.plusDays(1);
+        }
+        openClass.getSchedules().add(config);
+    }
+
     private LocalTime parseTimeSafely(String timeStr) {
         if (timeStr.length() == 4) timeStr = "0" + timeStr;
         return LocalTime.parse(timeStr);
@@ -155,6 +170,7 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("EEE, MMM dd");
 
+        // Use the flattened logic from HEAD to get specific date slots
         List<OpenClassResponse.ScheduleDto> availableSlots = entity.getSchedules().stream()
                 .flatMap(config -> config.getIndividualSlots().stream())
                 .filter(s -> !s.isBooked())
@@ -167,6 +183,8 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
                         .build())
                 .collect(Collectors.toList());
 
+        String tutorImage = (t.getMedia() != null) ? t.getMedia().getProfileImageUrl() : null;
+
         return OpenClassResponse.builder()
                 .classId(entity.getId())
                 .title(entity.getTitle())
@@ -174,7 +192,7 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
                 .status(entity.getStatus().name())
                 .tutorId(t.getId())
                 .tutorName(t.getUser().getFullname())
-                .tutorImage(t.getProfilePicture())
+                .tutorImage(tutorImage)
                 .tutorRating(t.getAverageRating())
                 .yearsOfExperience(t.getYearsOfExperience())
                 .location(entity.getLocation().getDistrict() + ", " + entity.getLocation().getCity())
@@ -185,12 +203,7 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
                 .build();
     }
 
-    // --- Standard Repository Methods ---
-
-    @Override
-    public OpenClassResponse createClass(OpenClassRequest request) {
-        return createClassWithImage(request, null);
-    }
+    // ------------------- READ & SEARCH -------------------
 
     @Override
     @Transactional(readOnly = true)
@@ -220,32 +233,31 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
         return TutorCardResponse.builder()
                 .tutorId(tutor.getId())
                 .fullname(tutor.getUser().getFullname())
-                .profilePicture(tutor.getProfilePicture())
+                .profilePicture(tutor.getMedia() != null ? tutor.getMedia().getProfileImageUrl() : null)
                 .rating(tutor.getAverageRating())
-                .subjects(tutor.getOpenClasses().stream().flatMap(c -> c.getSubjects().stream()).map(Subject::getName).distinct().toList())
+                .subjects(tutor.getOpenClasses().stream()
+                        .flatMap(c -> c.getSubjects().stream())
+                        .map(Subject::getName).distinct().toList())
                 .location(loc)
                 .build();
     }
+
+    // ------------------- DELETE -------------------
 
     @Override
     @Transactional
     public void deleteClass(Long id) {
         OpenClass entity = openClassRepository.findById(id).orElseThrow();
-        if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) throw new RuntimeException("Unauthorized");
+        if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) {
+            throw new RuntimeException("Unauthorized");
+        }
         openClassRepository.delete(entity);
-    }
-
-    @Override
-    @Transactional
-    public OpenClassResponse updateClass(Long id, OpenClassRequest request) {
-        OpenClass existing = openClassRepository.findById(id).orElseThrow();
-        if (!existing.getTutor().getId().equals(getCurrentTutor().getId())) throw new RuntimeException("Unauthorized");
-        return saveOrUpdateClass(existing, request, existing.getTutor());
     }
 
     private Tutor getCurrentTutor() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return tutorRepository.findByUserEmail(email).orElseThrow();
+        return tutorRepository.findByUserEmail(email)
+                .orElseThrow(() -> new RuntimeException("Tutor profile not found for user: " + email));
     }
 
     private String saveImage(MultipartFile file) {
@@ -255,6 +267,8 @@ private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest r
             Files.createDirectories(path.getParent());
             Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
             return "/" + UPLOAD_DIR + fileName;
-        } catch (IOException e) { throw new RuntimeException(e); }
+        } catch (IOException e) { 
+            throw new RuntimeException("Failed to store image", e); 
+        }
     }
 }

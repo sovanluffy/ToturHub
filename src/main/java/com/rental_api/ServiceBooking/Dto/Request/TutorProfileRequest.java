@@ -7,10 +7,7 @@ import java.util.List;
 public class TutorProfileRequest {
     private Long tutorId;
     private String bio;
-    private String profilePicture;
-    private String introVideoUrl;
-    private List<String> certificateImages;
-    
+    /// code 
     private List<EducationRequest> education;
     private List<ExperienceRequest> experience;
 
