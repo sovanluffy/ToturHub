@@ -1,9 +1,9 @@
-package com.rental_api.ServiceBooking.Service.Impl;
+package com.rental_api.ServiceBooking.Services.impl;
 
 import com.rental_api.ServiceBooking.Dto.Response.LocationResponse;
 import com.rental_api.ServiceBooking.Entity.Location;
 import com.rental_api.ServiceBooking.Repository.LocationRepository;
-import com.rental_api.ServiceBooking.Service.LocationService;
+import com.rental_api.ServiceBooking.Services.LocationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

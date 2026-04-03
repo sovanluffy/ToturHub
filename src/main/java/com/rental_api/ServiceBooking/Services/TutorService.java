@@ -17,6 +17,7 @@ public interface TutorService {
     void publishProfile();
 
     void unpublishProfile();
+    void adminUnpublishTutor(Long tutorId);
 
     TutorFullViewResponse getMyOwnProfile();
 

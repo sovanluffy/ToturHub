@@ -32,6 +32,8 @@ public class User implements UserDetails {
 
     // ❌ remove location from user if using Location entity
     // private String location;
+        private Long locationId; // <-- ADD THIS
+
 
     // Avatar URL for Cloudinary
     private String avatarUrl;

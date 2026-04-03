@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -77,6 +78,18 @@ public class TutorController {
             return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
         }
     }
+
+    // -------------------- ADMIN UNPUBLISH TUTOR --------------------
+@Operation(
+    summary = "Admin: Unpublish a tutor profile",
+    description = "Allows an admin to unpublish a tutor by their tutorId, making their profile invisible to students"
+)
+@PreAuthorize("hasRole('admin')")
+@PutMapping("/{tutorId}/admin-unpublish")
+public ResponseEntity<Map<String, String>> adminUnpublishTutor(@PathVariable Long tutorId) {
+    tutorService.adminUnpublishTutor(tutorId);
+    return ResponseEntity.ok(Map.of("message", "Tutor unpublished successfully by admin"));
+}
 
     // ------------------- GET MY OWN PROFILE -------------------
     @Operation(summary = "Get my own tutor profile", description = "Returns full details of the authenticated tutor")

@@ -4,7 +4,7 @@ import com.rental_api.ServiceBooking.Dto.Response.ApiResponse;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
 import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
 import com.rental_api.ServiceBooking.Services.OpenClassService;
-import com.rental_api.ServiceBooking.Services.PublicTutorService;
+import com.rental_api.ServiceBooking.Services.Public.PublicTutorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

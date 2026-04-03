@@ -3,19 +3,20 @@ package com.rental_api.ServiceBooking.Services.impl;
 import com.rental_api.ServiceBooking.Dto.Request.LoginRequest;
 import com.rental_api.ServiceBooking.Dto.Request.RegisterRequest;
 import com.rental_api.ServiceBooking.Dto.Response.AuthResponse;
+import com.rental_api.ServiceBooking.Dto.Response.ProfileResponse;
 import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Exception.ConflictException;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
-import com.rental_api.ServiceBooking.Repository.RoleRepository;
-import com.rental_api.ServiceBooking.Repository.UserRepository;
-import com.rental_api.ServiceBooking.Repository.TutorRepository;
-import com.rental_api.ServiceBooking.Repository.LocationRepository;
+import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
+import com.rental_api.ServiceBooking.Security.CustomUserDetails;
 import com.rental_api.ServiceBooking.Security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,16 +56,15 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException("Email already exists");
         }
 
-        // Upload avatar
+        // Upload avatar if provided
         String avatarUrl = null;
         if (avatar != null && !avatar.isEmpty()) {
             avatarUrl = cloudinaryService.uploadFile(avatar);
         }
 
-        // Assign location if provided
-        Location location = null;
+        // Validate location exists if provided
         if (request.getLocationId() != null) {
-            location = locationRepository.findById(request.getLocationId())
+            locationRepository.findById(request.getLocationId())
                     .orElseThrow(() -> new ResourceNotFoundException("Location not found: " + request.getLocationId()));
         }
 
@@ -77,6 +77,7 @@ public class AuthServiceImpl implements AuthService {
                 .address(request.getAddress())
                 .avatarUrl(avatarUrl)
                 .status(User.Status.ACTIVE)
+                .locationId(request.getLocationId())
                 .build();
 
         // Assign default student role
@@ -108,13 +109,40 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // -----------------------------
+    // GET PROFILE BY USER ID (Admin Use)
+    // -----------------------------
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileResponse getProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return buildProfileResponse(user);
+    }
+
+    // -----------------------------
+    // GET PROFILE FROM TOKEN (Current Logged-in User)
+    // -----------------------------
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileResponse getProfileFromToken() {
+        Long userId = getCurrentUserId();
+        return getProfile(userId); // reuse existing method
+    }
+
+    // -----------------------------
     // REQUEST TUTOR
     // -----------------------------
     @Override
     @Transactional
-    public AuthResponse requestTutor(Long userId) {
+    public AuthResponse requestTutor() {
+        Long userId = getCurrentUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (user.getStatus() == User.Status.PENDING) {
+            throw new ConflictException("Tutor request already submitted");
+        }
 
         Role tutorRole = roleRepository.findByName("tutor")
                 .orElseThrow(() -> new ResourceNotFoundException("Tutor role not found"));
@@ -138,7 +166,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // -----------------------------
-    // APPROVE/REJECT TUTOR (stub)
+    // APPROVE / REJECT TUTOR
     // -----------------------------
     @Override
     @Transactional
@@ -168,20 +196,71 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user, String message) {
-        List<String> roleNames = user.getRoles().stream().map(Role::getName).collect(Collectors.toList());
-        List<Long> roleIds = user.getRoles().stream().map(Role::getId).collect(Collectors.toList());
+        List<String> roleNames = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toList());
 
-        String token = jwtUtils.generateToken(user.getId(), user.getEmail(), user.getEmail(), roleNames, roleIds);
+        List<Long> roleIds = user.getRoles().stream()
+                .map(Role::getId)
+                .collect(Collectors.toList());
+
+        String token = jwtUtils.generateToken(
+                user.getId(),
+                user.getEmail(),
+                user.getEmail(),
+                roleNames,
+                roleIds
+        );
 
         return AuthResponse.builder()
                 .userId(user.getId())
                 .fullname(user.getFullname())
                 .email(user.getEmail())
+                .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
                 .message(message)
                 .token(token)
                 .roles(roleNames)
                 .roleIds(roleIds)
+                .locationId(user.getLocationId())
+                .city(user.getLocationId() != null ? locationRepository.findById(user.getLocationId()).map(Location::getCity).orElse(null) : null)
+                .district(user.getLocationId() != null ? locationRepository.findById(user.getLocationId()).map(Location::getDistrict).orElse(null) : null)
+                .fullAddress(user.getLocationId() != null ? locationRepository.findById(user.getLocationId()).map(Location::getAddress).orElse(null) : null)
                 .build();
+    }
+
+    private ProfileResponse buildProfileResponse(User user) {
+        List<String> roles = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toList());
+
+        Location location = null;
+        if (user.getLocationId() != null) {
+            location = locationRepository.findById(user.getLocationId()).orElse(null);
+        }
+
+        return ProfileResponse.builder()
+                .userId(user.getId())
+                .fullname(user.getFullname())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .address(user.getAddress())
+                .avatarUrl(user.getAvatarUrl())
+                .status(user.getStatus().name())
+                .roles(roles)
+                .locationId(user.getLocationId())
+                .city(location != null ? location.getCity() : null)
+                .district(location != null ? location.getDistrict() : null)
+                .fullAddress(location != null ? location.getAddress() : null)
+                .build();
+    }
+
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() &&
+                authentication.getPrincipal() instanceof CustomUserDetails userDetails) {
+            return userDetails.getId();
+        }
+        throw new ResourceNotFoundException("Authenticated user not found");
     }
 }

@@ -118,6 +118,18 @@ public class TutorServiceImpl implements TutorService {
     }
 
     @Override
+@Transactional
+public void adminUnpublishTutor(Long tutorId) {
+    Tutor tutor = tutorRepository.findById(tutorId)
+            .orElseThrow(() -> new ResourceNotFoundException("Tutor not found with id: " + tutorId));
+
+    tutor.setPublic(false);
+    tutorRepository.save(tutor);
+
+    log.info("Admin unpublished tutor with id {}", tutorId);
+}
+
+    @Override
     @Transactional(readOnly = true)
     public TutorFullViewResponse getMyOwnProfile() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();

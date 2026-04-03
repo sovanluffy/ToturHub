@@ -4,7 +4,7 @@ import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
 import com.rental_api.ServiceBooking.Entity.Subject;
 import com.rental_api.ServiceBooking.Entity.Tutor;
 import com.rental_api.ServiceBooking.Repository.TutorRepository;
-import com.rental_api.ServiceBooking.Services.PublicTutorService;
+import com.rental_api.ServiceBooking.Services.Public.PublicTutorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

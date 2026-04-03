@@ -1,4 +1,4 @@
-package com.rental_api.ServiceBooking.Service;
+package com.rental_api.ServiceBooking.Services;
 
 import com.rental_api.ServiceBooking.Dto.Response.LocationResponse;
 import java.util.List;

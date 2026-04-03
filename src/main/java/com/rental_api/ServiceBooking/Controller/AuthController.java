@@ -19,7 +19,6 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // REGISTER
     @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AuthResponse> register(
             @RequestPart("request") @Valid RegisterRequest request,
@@ -29,15 +28,14 @@ public class AuthController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    // LOGIN
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
-    // REQUEST TUTOR ROLE
-    @PostMapping("/request-tutor/{userId}")
-    public ResponseEntity<AuthResponse> requestTutor(@PathVariable Long userId) {
-        return ResponseEntity.ok(authService.requestTutor(userId));
+    @PostMapping("/request-tutor")
+    public ResponseEntity<AuthResponse> requestTutor() {
+        AuthResponse response = authService.requestTutor();
+        return ResponseEntity.ok(response);
     }
 }

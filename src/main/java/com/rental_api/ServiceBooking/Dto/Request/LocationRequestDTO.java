@@ -1,4 +1,4 @@
-package com.rental_api.ServiceBooking.Dto.Response;
+package com.rental_api.ServiceBooking.Dto.Request;
 
 import lombok.*;
 

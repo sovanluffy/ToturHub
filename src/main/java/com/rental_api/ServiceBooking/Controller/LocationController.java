@@ -1,7 +1,7 @@
 package com.rental_api.ServiceBooking.Controller;
 
 import com.rental_api.ServiceBooking.Dto.Response.LocationResponse;
-import com.rental_api.ServiceBooking.Service.LocationService;
+import com.rental_api.ServiceBooking.Services.LocationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
