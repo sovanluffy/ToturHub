@@ -62,10 +62,10 @@ public class OpenClass {
     @Enumerated(EnumType.STRING)
     private Set<LearningMode> learningModes;
 
-    // --- 📅 SCHEDULES (One-to-Many) ---
+    // Inside OpenClass.java
     @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<ClassSchedule> schedules = new ArrayList<>();
+    private List<ScheduleConfig> schedules = new ArrayList<>();
+
 
     // --- 🕒 METADATA ---
     private LocalDateTime createdAt;
