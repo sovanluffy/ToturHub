@@ -3,8 +3,6 @@ package com.rental_api.ServiceBooking.Controller;
 import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
 import com.rental_api.ServiceBooking.Services.TutorService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

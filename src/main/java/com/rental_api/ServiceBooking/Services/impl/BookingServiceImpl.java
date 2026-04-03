@@ -9,6 +9,9 @@ import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,5 +74,83 @@ public class BookingServiceImpl implements BookingService {
             savedBooking.getNote(),
             savedBooking.getCreatedAt() // Ensure DTO is LocalDateTime
     ); // Added missing semicolon
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getBookingsByClassId(Long openClassId) {
+        List<BookingClass> bookings = bookingRepository.findByOpenClassId(openClassId);
+        return bookings.stream().map(booking -> new BookingResponse(
+                booking.getId(),
+                booking.getScheduleConfig().getId(),
+                booking.getScheduleConfig().getScheduleType(),
+                booking.getScheduleConfig().getStartDate(),
+                booking.getScheduleConfig().getEndDate(),
+                booking.getScheduleConfig().getStartTime(),
+                booking.getScheduleConfig().getEndTime(),
+                booking.getStatus(),
+                booking.getNote(),
+                booking.getCreatedAt()
+        )).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getBookingsByUserId(Long userId) {
+        List<BookingClass> bookings = bookingRepository.findByUserId(userId);
+        return bookings.stream().map(booking -> new BookingResponse(
+                booking.getId(),
+                booking.getScheduleConfig().getId(),
+                booking.getScheduleConfig().getScheduleType(),
+                booking.getScheduleConfig().getStartDate(),
+                booking.getScheduleConfig().getEndDate(),
+                booking.getScheduleConfig().getStartTime(),
+                booking.getScheduleConfig().getEndTime(),
+                booking.getStatus(),
+                booking.getNote(),
+                booking.getCreatedAt()
+        )).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse conformBooking(Long bookingId) {
+        BookingClass booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found")); 
+        booking.setStatus(BookingStatus.CONFIRMED);
+        BookingClass updatedBooking = bookingRepository.save(booking);
+        return new BookingResponse(
+                updatedBooking.getId(),
+                updatedBooking.getScheduleConfig().getId(),
+                updatedBooking.getScheduleConfig().getScheduleType(),
+                updatedBooking.getScheduleConfig().getStartDate(),
+                updatedBooking.getScheduleConfig().getEndDate(),
+                updatedBooking.getScheduleConfig().getStartTime(),
+                updatedBooking.getScheduleConfig().getEndTime(),
+                updatedBooking.getStatus(),
+                updatedBooking.getNote(),
+                updatedBooking.getCreatedAt()
+        );
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse rejectBooking(Long bookingId) {
+        BookingClass booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking.setStatus(BookingStatus.REJECTED);
+        BookingClass updatedBooking = bookingRepository.save(booking);
+        return new BookingResponse(
+                updatedBooking.getId(),
+                updatedBooking.getScheduleConfig().getId(),
+                updatedBooking.getScheduleConfig().getScheduleType(),
+                updatedBooking.getScheduleConfig().getStartDate(),  
+                updatedBooking.getScheduleConfig().getEndDate(),
+                updatedBooking.getScheduleConfig().getStartTime(),
+                updatedBooking.getScheduleConfig().getEndTime(),
+                updatedBooking.getStatus(),
+                updatedBooking.getNote(),
+                updatedBooking.getCreatedAt()
+        );
     }
 }
