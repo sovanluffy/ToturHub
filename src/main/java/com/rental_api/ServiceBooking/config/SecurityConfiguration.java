@@ -32,77 +32,55 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-                // ✅ CORS
+                // 1. CORS MUST BE FIRST in the chain
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
 
-                // ✅ Authorization
                 .authorizeHttpRequests(auth -> auth
-
-                        // Allow preflight
+                        // Always allow Preflight OPTIONS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ PUBLIC: Locations API (FIX 401)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
-
-                        // Auth endpoints
+                        // PUBLIC: Auth & Public Resources
                         .requestMatchers(
                                 "/api/v1/auth/**",
-                                "/api/auth/**",
-                                "/auth/**",
-                                "/auth/google/**"
-                        ).permitAll()
-
-                        // Public resources
-                        .requestMatchers(
                                 "/api/v1/public/**",
+                                "/api/v1/locations/**", // Fixed 401 for locations
+                                "/auth/**",
                                 "/uploads/**"
                         ).permitAll()
 
-                        // Swagger
+                        // PUBLIC: Swagger Documentation
                         .requestMatchers(
                                 "/swagger-ui/**",
-                                "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/api-docs/**",
-                                "/swagger-resources/**",
-                                "/webjars/**"
+                                "/swagger-resources/**"
                         ).permitAll()
 
-                        // Public GET APIs
+                        // PUBLIC: Specific GET APIs for the Frontend
                         .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
 
-                        // Admin
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/categories/**").hasRole("ADMIN")
-                        .requestMatchers("/users/**").hasRole("ADMIN")
+                        // ROLE-BASED: Admin (Ensure DB uses ROLE_ADMIN)
+                        .requestMatchers("/api/v1/admin/**", "/users/**").hasRole("ADMIn")
 
-                        // Tutor
+                        // ROLE-BASED: Tutor (Ensure DB uses ROLE_TUTOR)
                         .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("TUTOR")
                         .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("TUTOR")
 
-                        // Student
+                        // ROLE-BASED: Student (Ensure DB uses ROLE_STUDENT)
                         .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("STUDENT")
 
-                        // Others require authentication
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Stateless JWT
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // ✅ Provider
                 .authenticationProvider(authenticationProvider)
-
-                // ✅ JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-
-                // ✅ Exception handling
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler)
@@ -111,36 +89,25 @@ public class SecurityConfiguration {
         return http.build();
     }
 
-    // ✅ CORS CONFIG (FIXED)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-
         CorsConfiguration configuration = new CorsConfiguration();
 
+        // ALLOW FRONTEND ORIGINS (No trailing slashes!)
         configuration.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "http://localhost:5173",
+                "http://localhost:5173", // Vite
+                "http://localhost:3000", // Standard React
                 "http://localhost:5181",
-                "http://localhost:8080", // Swagger
                 "https://toturhub-dev.onrender.com"
         ));
 
-        configuration.setAllowedMethods(List.of(
-                "GET",
-                "POST",
-                "PUT",
-                "DELETE",
-                "PATCH",
-                "OPTIONS"
-        ));
-
-        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-//code
         return source;
     }
 }
