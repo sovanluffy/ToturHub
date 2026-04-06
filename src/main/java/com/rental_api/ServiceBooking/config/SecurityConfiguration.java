@@ -76,16 +76,16 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
 
                         // Admin
-                        .requestMatchers("/api/v1/admin/**").hasRole("admin")
-                        .requestMatchers("/api/categories/**").hasRole("admin")
-                        .requestMatchers("/users/**").hasRole("admin")
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers("/users/**").hasRole("ADMIN")
 
                         // Tutor
-                        .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("tutor")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("tutor")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("TUTOR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("TUTOR")
 
                         // Student
-                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("student")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("STUDENT")
 
                         // Others require authentication
                         .anyRequest().authenticated()

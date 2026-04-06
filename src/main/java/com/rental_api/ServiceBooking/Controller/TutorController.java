@@ -80,16 +80,16 @@ public class TutorController {
     }
 
     // -------------------- ADMIN UNPUBLISH TUTOR --------------------
-@Operation(
-    summary = "Admin: Unpublish a tutor profile",
-    description = "Allows an admin to unpublish a tutor by their tutorId, making their profile invisible to students"
-)
-@PreAuthorize("hasRole('admin')")
-@PutMapping("/{tutorId}/admin-unpublish")
-public ResponseEntity<Map<String, String>> adminUnpublishTutor(@PathVariable Long tutorId) {
-    tutorService.adminUnpublishTutor(tutorId);
-    return ResponseEntity.ok(Map.of("message", "Tutor unpublished successfully by admin"));
-}
+    @Operation(
+        summary = "Admin: Unpublish a tutor profile",
+        description = "Allows an admin to unpublish a tutor by their tutorId, making their profile invisible to students"
+    )
+    @PreAuthorize("hasRole('admin')")
+    @PutMapping("/{tutorId}/admin-unpublish")
+    public ResponseEntity<Map<String, String>> adminUnpublishTutor(@PathVariable Long tutorId) {
+        tutorService.adminUnpublishTutor(tutorId);
+        return ResponseEntity.ok(Map.of("message", "Tutor unpublished successfully by admin"));
+    }
 
     // ------------------- GET MY OWN PROFILE -------------------
     @Operation(summary = "Get my own tutor profile", description = "Returns full details of the authenticated tutor")
