@@ -1,6 +1,7 @@
 package com.rental_api.ServiceBooking.Controller;
 
 import com.rental_api.ServiceBooking.Dto.Request.TutorProfileRequest;
+import com.rental_api.ServiceBooking.Dto.Response.TutorFullViewResponse;
 import com.rental_api.ServiceBooking.Services.TutorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,16 +35,22 @@ public class TutorController {
             @RequestParam(value = "publish", defaultValue = "false") boolean publish
     ) {
         try {
-            tutorService.updateTutorProfile(data, profileImg, coverImg, videoFile, certificates);
+            // 1. Call the service (matches your 'void' interface)
+            tutorService.updateTutorProfile(data, profileImg, videoFile, coverImg, certificates);
 
-            // Publish/unpublish if requested
+            // 2. Handle the publishing toggle based on query parameter
             if (publish) {
                 tutorService.publishProfile();
             } else {
                 tutorService.unpublishProfile();
             }
 
-            return ResponseEntity.ok(Map.of("message", "Profile updated successfully!"));
+            // 3. FETCH the updated profile to return as the response body
+            // This ensures the frontend gets the NEW Cloudinary URLs immediately
+            TutorFullViewResponse updatedProfile = tutorService.getMyOwnProfile();
+            
+            return ResponseEntity.ok(updatedProfile);
+
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
@@ -57,11 +64,9 @@ public class TutorController {
     public ResponseEntity<?> publishProfile() {
         try {
             tutorService.publishProfile();
-            return ResponseEntity.ok(Map.of("message", "Profile is now public!"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.ok(tutorService.getMyOwnProfile());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -71,19 +76,14 @@ public class TutorController {
     public ResponseEntity<?> unpublishProfile() {
         try {
             tutorService.unpublishProfile();
-            return ResponseEntity.ok(Map.of("message", "Profile is now unpublished!"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.ok(tutorService.getMyOwnProfile());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
     // -------------------- ADMIN UNPUBLISH TUTOR --------------------
-    @Operation(
-        summary = "Admin: Unpublish a tutor profile",
-        description = "Allows an admin to unpublish a tutor by their tutorId, making their profile invisible to students"
-    )
+    @Operation(summary = "Admin: Unpublish a tutor profile")
     @PreAuthorize("hasRole('admin')")
     @PutMapping("/{tutorId}/admin-unpublish")
     public ResponseEntity<Map<String, String>> adminUnpublishTutor(@PathVariable Long tutorId) {
@@ -92,24 +92,24 @@ public class TutorController {
     }
 
     // ------------------- GET MY OWN PROFILE -------------------
-    @Operation(summary = "Get my own tutor profile", description = "Returns full details of the authenticated tutor")
+    @Operation(summary = "Get my own tutor profile")
     @GetMapping("/me")
     public ResponseEntity<?> getMyOwnProfile() {
         try {
             return ResponseEntity.ok(tutorService.getMyOwnProfile());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
     // ------------------- GET TUTOR FULL DETAIL BY ID -------------------
-    @Operation(summary = "Get full tutor profile by ID", description = "Returns full details of a specific tutor by their ID")
+    @Operation(summary = "Get full tutor profile by ID")
     @GetMapping("/{tutorId}")
     public ResponseEntity<?> getTutorFullDetail(@PathVariable Long tutorId) {
         try {
             return ResponseEntity.ok(tutorService.getTutorFullDetail(tutorId));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 }
