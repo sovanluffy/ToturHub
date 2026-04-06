@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.rental_api.ServiceBooking.Entity.BookingClass;
+import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 
 
 @Repository
@@ -14,5 +15,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
     List<BookingClass> findByOpenClassId(Long openClassId);
 
     List<BookingClass> findByUserId(Long userId);
+
+    long countByOpenClassIdAndStatus(Long id, BookingStatus confirmed);
 
 }

@@ -81,7 +81,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         // Assign default student role
-        Role studentRole = roleRepository.findByName("student")
+        Role studentRole = roleRepository.findByName("STUDENT")
                 .orElseThrow(() -> new ResourceNotFoundException("Student role not found"));
         user.setRoles(Set.of(studentRole));
 
@@ -144,7 +144,7 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException("Tutor request already submitted");
         }
 
-        Role tutorRole = roleRepository.findByName("tutor")
+        Role tutorRole = roleRepository.findByName("TUTOR")
                 .orElseThrow(() -> new ResourceNotFoundException("Tutor role not found"));
 
         user.getRoles().add(tutorRole);

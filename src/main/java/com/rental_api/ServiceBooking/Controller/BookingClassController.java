@@ -32,7 +32,7 @@ public class BookingClassController {
     }
 
     @GetMapping("/my-class/{openClassId}")
-    @PreAuthorize("hasRole('tutor') and @securityService.isTutorOfClass(authentication, #openClassId)") 
+    @PreAuthorize("hasRole('TUTOR') and @securityService.isTutorOfClass(authentication, #openClassId)") 
     public ResponseEntity<List<BookingResponse>> getBookingsByClassId(@PathVariable Long openClassId) {
         List<BookingResponse> responses = bookingService.getBookingsByClassId(openClassId);
         return ResponseEntity.ok(responses);
@@ -47,14 +47,14 @@ public class BookingClassController {
 
 
     @PostMapping("/conform-booking/{bookingId}")
-    @PreAuthorize("hasRole('tutor') and @securityService.isTutorOfBooking(authentication, #bookingId)") 
+    @PreAuthorize("hasRole('TUTOR') and @securityService.isTutorOfBooking(authentication, #bookingId)") 
     public ResponseEntity<BookingResponse> conformBooking(@PathVariable Long bookingId) {
         BookingResponse response = bookingService.conformBooking(bookingId);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/reject-booking/{bookingId}")
-    @PreAuthorize("hasRole('tutor') and @securityService.isTutorOfBooking(authentication, #bookingId)") 
+    @PreAuthorize("hasRole('TUTOR') and @securityService.isTutorOfBooking(authentication, #bookingId)") 
     public ResponseEntity<BookingResponse> rejectBooking(@PathVariable Long bookingId) {
         BookingResponse response = bookingService.rejectBooking(bookingId);
         return ResponseEntity.ok(response);

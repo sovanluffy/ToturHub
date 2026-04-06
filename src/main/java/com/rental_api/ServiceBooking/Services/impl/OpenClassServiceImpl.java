@@ -27,8 +27,6 @@ public class OpenClassServiceImpl implements OpenClassService {
     private final SubjectRepository subjectRepository;
     private final LocationRepository locationRepository;
 
-    // ------------------- CREATE -------------------
-
     @Override
     @Transactional
     public OpenClassResponse createClass(OpenClassRequest request) {
@@ -45,8 +43,6 @@ public class OpenClassServiceImpl implements OpenClassService {
         return saveOrUpdateClass(entity, request, tutor);
     }
 
-    // ------------------- UPDATE -------------------
-
     @Override
     @Transactional
     public OpenClassResponse updateClass(Long id, OpenClassRequest request) {
@@ -57,7 +53,6 @@ public class OpenClassServiceImpl implements OpenClassService {
         if (!existing.getTutor().getId().equals(tutor.getId())) {
             throw new RuntimeException("Unauthorized: You do not own this class");
         }
-
         return saveOrUpdateClass(existing, request, tutor);
     }
 
@@ -70,40 +65,41 @@ public class OpenClassServiceImpl implements OpenClassService {
         entity.setTutor(tutor);
         entity.setLocation(location);
         entity.setSpecificAddress(request.getSpecificAddress());
-        
-        // Save raw pricing data
         entity.setBasePrice(request.getBasePrice());
         entity.setMaxStudents(request.getMaxStudents() != null ? request.getMaxStudents() : 20);
-
         entity.setSubjects(subjectRepository.findAllById(request.getSubjectIds()));
         entity.setStatus(OpenClass.ClassStatus.OPEN);
 
         if (request.getLearningModes() != null) {
-            Set<OpenClass.LearningMode> modes = request.getLearningModes().stream()
-                    .map(mode -> OpenClass.LearningMode.valueOf(mode.toUpperCase()))
-                    .collect(Collectors.toSet());
-            entity.setLearningModes(modes);
-        }
+    // Initialize if null (though @Builder.Default handles this)
+    if (entity.getLearningModes() == null) {
+        entity.setLearningModes(new HashSet<>());
+    }
+    
+    // Clear old modes and add new ones
+    entity.getLearningModes().clear();
+    
+    Set<OpenClass.LearningMode> modes = request.getLearningModes().stream()
+            .map(mode -> OpenClass.LearningMode.valueOf(mode.toUpperCase().trim()))
+            .collect(Collectors.toSet());
+            
+    entity.getLearningModes().addAll(modes);
+}
 
-        // Refresh Schedules
-        if (entity.getSchedules() != null) {
-            entity.getSchedules().clear(); 
-        } else {
-            entity.setSchedules(new ArrayList<>());
-        }
+        if (entity.getSchedules() != null) entity.getSchedules().clear();
+        else entity.setSchedules(new ArrayList<>());
 
         if (request.getSchedules() != null) {
             for (OpenClassRequest.ScheduleConfig dto : request.getSchedules()) {
                 generateIndividualSlots(entity, dto);
             }
         }
-
         return mapToResponse(openClassRepository.save(entity));
     }
 
     private void generateIndividualSlots(OpenClass openClass, OpenClassRequest.ScheduleConfig dto) {
         ScheduleConfig config = new ScheduleConfig();
-        String typeStr = dto.getScheduleType() != null ? dto.getScheduleType().toUpperCase() : "DAILY";
+        String typeStr = (dto.getScheduleType() != null) ? dto.getScheduleType().toUpperCase() : "DAILY";
         
         config.setScheduleType(typeStr); 
         config.setStartDate(dto.getStartDate());
@@ -130,18 +126,13 @@ public class OpenClassServiceImpl implements OpenClassService {
 
             if (shouldAdd) {
                 for (OpenClassRequest.TimeRangeRequest trDto : dto.getTimeRanges()) {
-                    LocalTime startT = parseTimeSafely(trDto.getStartTime());
-                    LocalTime endT = parseTimeSafely(trDto.getEndTime());
-
                     ClassSchedule slot = ClassSchedule.builder()
-                            .startTime(current.atTime(startT))
-                            .endTime(current.atTime(endT))
+                            .startTime(current.atTime(parseTimeSafely(trDto.getStartTime())))
+                            .endTime(current.atTime(parseTimeSafely(trDto.getEndTime())))
                             .openClass(openClass)
                             .config(config)
-                            .isBooked(false)
                             .type(mapToScheduleType(typeStr))
                             .build();
-                    
                     config.getIndividualSlots().add(slot);
                 }
             }
@@ -150,59 +141,48 @@ public class OpenClassServiceImpl implements OpenClassService {
         openClass.getSchedules().add(config);
     }
 
-    private LocalTime parseTimeSafely(String timeStr) {
-        if (timeStr.length() == 4) timeStr = "0" + timeStr;
-        return LocalTime.parse(timeStr);
-    }
-
-    private ClassSchedule.ScheduleType mapToScheduleType(String type) {
-        try {
-            return ClassSchedule.ScheduleType.valueOf(type.toUpperCase());
-        } catch (Exception e) {
-            return ClassSchedule.ScheduleType.DAILY;
-        }
-    }
-
     private OpenClassResponse mapToResponse(OpenClass entity) {
         Tutor t = entity.getTutor();
+
+
+        int totalConfirmedStudents = entity.getSchedules().stream()
+            .filter(config -> config.getBookings() != null) // Safety check
+            .flatMap(config -> config.getBookings().stream())
+            .filter(booking -> booking.getStatus() != null && 
+                               "CONFIRMED".equalsIgnoreCase(booking.getStatus().toString()))
+            .mapToInt(b -> 1) 
+            .sum();
+
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("EEE, MMM dd");
 
-        // --- DYNAMIC PRICING GENERATION ---
-        List<OpenClassResponse.PriceTierDto> priceOptions = new ArrayList<>();
-        BigDecimal base = entity.getBasePrice();
-        int max = entity.getMaxStudents();
+        // 1. Dynamic Pricing Logic
+        List<OpenClassResponse.PriceTierDto> priceOptions = generatePriceTiers(entity.getBasePrice(), entity.getMaxStudents());
 
-        priceOptions.add(new OpenClassResponse.PriceTierDto("1 Student", base));
+        // 2. Capacity-Based Slots Logic
+       List<OpenClassResponse.ScheduleDto> availableSlots = entity.getSchedules().stream()
+        .flatMap(config -> {
+            // 1. Count confirmed bookings for the WHOLE CONFIG group
+            long confirmedCount = config.getBookings().stream()
+                .filter(b -> "CONFIRMED".equalsIgnoreCase(b.getStatus().toString()))
+                .count();
 
-        int[] breakPoints = {5, 10, 15};
-        for (int start : breakPoints) {
-            if (start <= max) {
-                int end = Math.min(start + 5, max);
-                // Discount: 10% for 5+, 20% for 10+, 30% for 15+
-                double discount = 1.0 - ((start / 5.0) * 0.10);
-                BigDecimal tierPrice = base.multiply(BigDecimal.valueOf(discount));
-                
-                priceOptions.add(new OpenClassResponse.PriceTierDto(start + "-" + end + " Students", tierPrice));
-                if (end == max) break;
-            }
-        }
+            int spotsLeft = entity.getMaxStudents() - (int) confirmedCount;
 
-        // --- SCHEDULE MAPPING ---
-        List<OpenClassResponse.ScheduleDto> availableSlots = entity.getSchedules().stream()
-                .flatMap(config -> config.getIndividualSlots().stream())
-                .filter(s -> !s.isBooked())
-                .sorted(Comparator.comparing(ClassSchedule::getStartTime))
-                .map(s -> OpenClassResponse.ScheduleDto.builder()
-                        .id(s.getId())
-                        .timeRange(s.getStartTime().format(timeFmt) + " - " +
-                                   s.getEndTime().format(timeFmt) + " (" +
-                                   s.getStartTime().format(dateFmt) + ")")
-                        .build())
-                .collect(Collectors.toList());
+            // 2. Map individual slots within this config if there is room
+            if (spotsLeft <= 0) return java.util.stream.Stream.empty();
 
-        String tutorImg = (t.getMedia() != null) ? t.getMedia().getProfileImageUrl() : null;
-
+            return config.getIndividualSlots().stream()
+                .map(slot -> OpenClassResponse.ScheduleDto.builder()
+                    .id(slot.getId())
+                    .timeRange(slot.getStartTime().format(timeFmt) + " - " +
+                               slot.getEndTime().format(timeFmt) + " (" +
+                               slot.getStartTime().format(dateFmt) + ")")
+                    .availableSpots(spotsLeft)
+                    .build());
+        })
+        .sorted(Comparator.comparing(dto -> dto.getId())) // or sort by time
+        .collect(Collectors.toList());
         return OpenClassResponse.builder()
                 .classId(entity.getId())
                 .title(entity.getTitle())
@@ -210,18 +190,46 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .status(entity.getStatus().name())
                 .tutorId(t.getId())
                 .tutorName(t.getUser().getFullname())
-                .tutorImage(tutorImg)
                 .tutorRating(t.getAverageRating())
                 .location(entity.getLocation().getDistrict() + ", " + entity.getLocation().getCity())
-                .subjects(entity.getSubjects().stream().map(Subject::getName).collect(Collectors.toList()))
-                .basePrice(base)
-                .maxStudents(max)
+                .specificAddress(entity.getSpecificAddress())
+                .subjects(entity.getSubjects().stream().map(Subject::getName).toList())
+                .basePrice(entity.getBasePrice())
+                .maxStudents(entity.getMaxStudents())
+                .currentStudents(totalConfirmedStudents)
                 .priceOptions(priceOptions)
                 .availableSlots(availableSlots)
+                .learningModes(entity.getLearningModes() != null ? 
+                entity.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()) : 
+                Collections.emptySet())
                 .build();
     }
 
-    // ------------------- READ & SEARCH -------------------
+    private List<OpenClassResponse.PriceTierDto> generatePriceTiers(BigDecimal base, int max) {
+        List<OpenClassResponse.PriceTierDto> tiers = new ArrayList<>();
+        tiers.add(new OpenClassResponse.PriceTierDto("1 Student", base));
+
+        for (int start = 5; start <= max; start += 5) {
+            int end = Math.min(start + 4, max);
+            double discountRate = Math.min((start / 5) * 0.10, 0.50); // Cap at 50%
+            BigDecimal tierPrice = base.multiply(BigDecimal.valueOf(1.0 - discountRate));
+            
+            String label = (start == end) ? start + " Students" : start + "-" + end + " Students";
+            tiers.add(new OpenClassResponse.PriceTierDto(label, tierPrice));
+            if (end == max) break;
+        }
+        return tiers;
+    }
+
+    private LocalTime parseTimeSafely(String timeStr) {
+        if (timeStr.length() == 4) timeStr = "0" + timeStr;
+        return LocalTime.parse(timeStr);
+    }
+
+    private ClassSchedule.ScheduleType mapToScheduleType(String type) {
+        try { return ClassSchedule.ScheduleType.valueOf(type.toUpperCase()); }
+        catch (Exception e) { return ClassSchedule.ScheduleType.DAILY; }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -247,35 +255,26 @@ public class OpenClassServiceImpl implements OpenClassService {
     private TutorCardResponse mapToTutorCard(Tutor tutor) {
         String loc = tutor.getOpenClasses().isEmpty() ? "Not Specified" :
                 tutor.getOpenClasses().get(0).getLocation().getDistrict();
-        
         return TutorCardResponse.builder()
                 .tutorId(tutor.getId())
                 .fullname(tutor.getUser().getFullname())
                 .profilePicture(tutor.getMedia() != null ? tutor.getMedia().getProfileImageUrl() : null)
                 .rating(tutor.getAverageRating())
-                .subjects(tutor.getOpenClasses().stream()
-                        .flatMap(c -> c.getSubjects().stream())
-                        .map(Subject::getName).distinct().toList())
+                .subjects(tutor.getOpenClasses().stream().flatMap(c -> c.getSubjects().stream()).map(Subject::getName).distinct().toList())
                 .location(loc)
                 .build();
     }
 
-    // ------------------- DELETE -------------------
-
     @Override
     @Transactional
     public void deleteClass(Long id) {
-        OpenClass entity = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-        if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) {
-            throw new RuntimeException("Unauthorized");
-        }
+        OpenClass entity = openClassRepository.findById(id).orElseThrow(() -> new RuntimeException("Class not found"));
+        if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) throw new RuntimeException("Unauthorized");
         openClassRepository.delete(entity);
     }
 
     private Tutor getCurrentTutor() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return tutorRepository.findByUserEmail(email)
-                .orElseThrow(() -> new RuntimeException("Tutor profile not found for: " + email));
+        return tutorRepository.findByUserEmail(email).orElseThrow(() -> new RuntimeException("Tutor profile not found"));
     }
 }
