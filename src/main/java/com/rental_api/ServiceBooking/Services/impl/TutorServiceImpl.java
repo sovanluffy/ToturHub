@@ -18,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -40,68 +39,96 @@ public class TutorServiceImpl implements TutorService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         log.info("Updating tutor profile for {}", email);
 
-        Tutor tutor = tutorRepository.findByUserEmail(email)
-                .orElseGet(() -> {
-                    User user = userRepository.findByEmail(email)
-                            .orElseThrow(() -> new UserNotFoundException("User not found: " + email));
-                    return Tutor.builder().user(user).build();
-                });
+        User user = validateUserAndRole(email);
+        validateRequest(request);
 
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+                .orElseGet(() -> Tutor.builder().user(user).build());
+
+        // Initialize Media if null
         TutorMedia media = tutor.getMedia();
         if (media == null) {
             media = TutorMedia.builder()
                     .tutor(tutor)
+                    .mediaType("IMAGE") // Default value
                     .certificateImages(new ArrayList<>())
                     .build();
             tutor.setMedia(media);
         }
 
-        // Upload profile image
-        if (profileImg != null && !profileImg.isEmpty()) {
-            media.setProfileImageUrl(cloudinaryService.uploadFile(profileImg));
+        try {
+            boolean hasVideo = (media.getIntroVideoUrl() != null);
+            boolean hasImages = (media.getProfileImageUrl() != null || media.getCoverImageUrl() != null);
+
+            if (profileImg != null && !profileImg.isEmpty()) {
+                media.setProfileImageUrl(cloudinaryService.uploadFile(profileImg));
+                hasImages = true;
+            }
+
+            if (videoFile != null && !videoFile.isEmpty()) {
+                media.setIntroVideoUrl(cloudinaryService.uploadFile(videoFile));
+                hasVideo = true;
+            }
+
+            if (coverImage != null && !coverImage.isEmpty()) {
+                media.setCoverImageUrl(cloudinaryService.uploadFile(coverImage));
+                hasImages = true;
+            }
+
+            if (certificates != null && !certificates.isEmpty()) {
+                List<String> urls = certificates.stream()
+                        .filter(f -> f != null && !f.isEmpty())
+                        .map(cloudinaryService::uploadFile)
+                        .toList();
+                media.getCertificateImages().addAll(urls);
+                hasImages = true;
+            }
+
+            // Correctly determine Media Type
+            if (hasVideo && hasImages) {
+                media.setMediaType("MIXED");
+            } else if (hasVideo) {
+                media.setMediaType("VIDEO");
+            } else {
+                media.setMediaType("IMAGE");
+            }
+
+        } catch (Exception e) {
+            log.error("Cloudinary upload failed", e);
+            throw new RuntimeException("File upload failed: " + e.getMessage());
         }
 
-        // Upload intro video
-        if (videoFile != null && !videoFile.isEmpty()) {
-            media.setIntroVideoUrl(cloudinaryService.uploadFile(videoFile));
-        }
-
-        // Upload cover image
-        if (coverImage != null && !coverImage.isEmpty()) {
-            media.setCoverImageUrl(cloudinaryService.uploadFile(coverImage));
-        }
-
-        // Upload certificates
-        if (certificates != null && !certificates.isEmpty()) {
-            List<String> urls = certificates.stream()
-                    .filter(f -> f != null && !f.isEmpty())
-                    .map(cloudinaryService::uploadFile)
-                    .collect(Collectors.toList());
-            media.getCertificateImages().addAll(urls);
-        }
-
-        // Set bio
-        if (request.getBio() != null) {
-            tutor.setBio(request.getBio());
-        }
-
+        tutor.setBio(request.getBio());
         refreshCollections(tutor, request);
 
         tutorRepository.saveAndFlush(tutor);
+    }
+
+    private User validateUserAndRole(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + email));
+
+        boolean isTutor = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("TUTOR"));
+
+        if (!isTutor) {
+            throw new IllegalArgumentException("Access denied: User is not a tutor");
+        }
+        return user;
+    }
+
+    private void validateRequest(TutorProfileRequest request) {
+        if (request.getBio() == null || request.getBio().isBlank()) {
+            throw new IllegalArgumentException("Bio is required");
+        }
     }
 
     @Override
     @Transactional
     public void publishProfile() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
         Tutor tutor = tutorRepository.findByUserEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found"));
-
-        if (tutor.getBio() == null || tutor.getBio().isBlank()) {
-            throw new IllegalArgumentException("Cannot publish profile: Bio is required");
-        }
-
         tutor.setPublic(true);
         tutorRepository.save(tutor);
     }
@@ -110,7 +137,6 @@ public class TutorServiceImpl implements TutorService {
     @Transactional
     public void unpublishProfile() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
         tutorRepository.findByUserEmail(email).ifPresent(tutor -> {
             tutor.setPublic(false);
             tutorRepository.save(tutor);
@@ -118,16 +144,13 @@ public class TutorServiceImpl implements TutorService {
     }
 
     @Override
-@Transactional
-public void adminUnpublishTutor(Long tutorId) {
-    Tutor tutor = tutorRepository.findById(tutorId)
-            .orElseThrow(() -> new ResourceNotFoundException("Tutor not found with id: " + tutorId));
-
-    tutor.setPublic(false);
-    tutorRepository.save(tutor);
-
-    log.info("Admin unpublished tutor with id {}", tutorId);
-}
+    @Transactional
+    public void adminUnpublishTutor(Long tutorId) {
+        Tutor tutor = tutorRepository.findById(tutorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
+        tutor.setPublic(false);
+        tutorRepository.save(tutor);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -155,47 +178,32 @@ public void adminUnpublishTutor(Long tutorId) {
         });
     }
 
-    // ------------------------ Private helpers ------------------------
-
     private void refreshCollections(Tutor tutor, TutorProfileRequest request) {
-        // Refresh education
+        if (tutor.getEducation() == null) tutor.setEducation(new ArrayList<>());
         tutor.getEducation().clear();
         if (request.getEducation() != null) {
             request.getEducation().forEach(e ->
-                    tutor.getEducation().add(
-                            Education.builder()
-                                    .schoolName(e.getSchool())
-                                    .degree(e.getDegree())
-                                    .yearFinished(e.getYear())
-                                    .tutor(tutor)
-                                    .build()
-                    )
+                    tutor.getEducation().add(Education.builder()
+                            .schoolName(e.getSchool()).degree(e.getDegree())
+                            .yearFinished(e.getYear()).tutor(tutor).build())
             );
         }
 
-        // Refresh experience
+        if (tutor.getExperience() == null) tutor.setExperience(new ArrayList<>());
         tutor.getExperience().clear();
         if (request.getExperience() != null) {
             request.getExperience().forEach(ex ->
-                    tutor.getExperience().add(
-                            Experience.builder()
-                                    .companyName(ex.getCompany())
-                                    .role(ex.getRole())
-                                    .duration(ex.getDuration())
-                                    .tutor(tutor)
-                                    .build()
-                    )
+                    tutor.getExperience().add(Experience.builder()
+                            .companyName(ex.getCompany()).role(ex.getRole())
+                            .duration(ex.getDuration()).tutor(tutor).build())
             );
         }
     }
 
     private TutorFullViewResponse mapToResponse(Tutor t) {
         TutorMedia media = t.getMedia();
-
-        // Use uploaded profile image first, fallback to user's avatar
-        String profilePic = (media != null && media.getProfileImageUrl() != null && !media.getProfileImageUrl().isBlank())
-                ? media.getProfileImageUrl()
-                : t.getUser().getAvatarUrl();
+        String profilePic = (media != null && media.getProfileImageUrl() != null)
+                ? media.getProfileImageUrl() : t.getUser().getAvatarUrl();
 
         return TutorFullViewResponse.builder()
                 .tutorId(t.getId())
@@ -208,19 +216,13 @@ public void adminUnpublishTutor(Long tutorId) {
                 .studentsTaught(t.getTotalStudentsTaught())
                 .isPublic(t.isPublic())
                 .education(t.getEducation().stream()
-                        .map(e -> new TutorFullViewResponse.EducationDto(
-                                e.getSchoolName(),
-                                e.getDegree(),
-                                e.getYearFinished()
-                        )).toList())
+                        .map(e -> new TutorFullViewResponse.EducationDto(e.getSchoolName(), e.getDegree(), e.getYearFinished()))
+                        .toList())
                 .experience(t.getExperience().stream()
-                        .map(ex -> new TutorFullViewResponse.ExperienceDto(
-                                ex.getCompanyName(),
-                                ex.getRole(),
-                                ex.getDuration()
-                        )).toList())
-                .activeClasses(new ArrayList<>()) // Can be filled if needed
-                .reviews(new ArrayList<>())       // Can be filled if needed
+                        .map(ex -> new TutorFullViewResponse.ExperienceDto(ex.getCompanyName(), ex.getRole(), ex.getDuration()))
+                        .toList())
+                .activeClasses(new ArrayList<>())
+                .reviews(new ArrayList<>())
                 .build();
     }
 }
