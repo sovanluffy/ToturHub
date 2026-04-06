@@ -55,6 +55,9 @@ public class BookingClass {
 
     @Column(length = 2000)
     private String note;
+
+    @Column(length = 255, nullable = false)
+    private String telegram;
     
     @Enumerated(EnumType.STRING)
     private BookingStatus status; 

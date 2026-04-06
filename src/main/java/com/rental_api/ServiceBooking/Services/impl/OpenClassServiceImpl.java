@@ -12,8 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.*;
+import java.math.BigDecimal;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -28,8 +27,6 @@ public class OpenClassServiceImpl implements OpenClassService {
     private final SubjectRepository subjectRepository;
     private final LocationRepository locationRepository;
 
-    private static final String UPLOAD_DIR = "uploads/tutor-profiles/";
-
     // ------------------- CREATE -------------------
 
     @Override
@@ -42,12 +39,9 @@ public class OpenClassServiceImpl implements OpenClassService {
     @Override
     @Transactional
     public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
-        
         Tutor tutor = getCurrentTutor();
         OpenClass entity = new OpenClass();
-        // Set image URL to entity if your entity has an image field
-        // entity.setImageUrl(imageUrl); 
-        
+        // logic for image upload would go here
         return saveOrUpdateClass(entity, request, tutor);
     }
 
@@ -69,14 +63,18 @@ public class OpenClassServiceImpl implements OpenClassService {
 
     private OpenClassResponse saveOrUpdateClass(OpenClass entity, OpenClassRequest request, Tutor tutor) {
         Location location = locationRepository.findById(request.getLocationId())
-                .orElseThrow(() -> new RuntimeException("Location not found ID: " + request.getLocationId()));
+                .orElseThrow(() -> new RuntimeException("Location not found"));
 
         entity.setTitle(request.getTitle());
         entity.setDescription(request.getDescription());
         entity.setTutor(tutor);
         entity.setLocation(location);
         entity.setSpecificAddress(request.getSpecificAddress());
-        entity.setPriceOptions(request.getPriceOptions());
+        
+        // Save raw pricing data
+        entity.setBasePrice(request.getBasePrice());
+        entity.setMaxStudents(request.getMaxStudents() != null ? request.getMaxStudents() : 20);
+
         entity.setSubjects(subjectRepository.findAllById(request.getSubjectIds()));
         entity.setStatus(OpenClass.ClassStatus.OPEN);
 
@@ -87,7 +85,7 @@ public class OpenClassServiceImpl implements OpenClassService {
             entity.setLearningModes(modes);
         }
 
-        // Clear and refresh schedules to avoid duplicates
+        // Refresh Schedules
         if (entity.getSchedules() != null) {
             entity.getSchedules().clear(); 
         } else {
@@ -170,7 +168,27 @@ public class OpenClassServiceImpl implements OpenClassService {
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("EEE, MMM dd");
 
-        // Use the flattened logic from HEAD to get specific date slots
+        // --- DYNAMIC PRICING GENERATION ---
+        List<OpenClassResponse.PriceTierDto> priceOptions = new ArrayList<>();
+        BigDecimal base = entity.getBasePrice();
+        int max = entity.getMaxStudents();
+
+        priceOptions.add(new OpenClassResponse.PriceTierDto("1 Student", base));
+
+        int[] breakPoints = {5, 10, 15};
+        for (int start : breakPoints) {
+            if (start <= max) {
+                int end = Math.min(start + 5, max);
+                // Discount: 10% for 5+, 20% for 10+, 30% for 15+
+                double discount = 1.0 - ((start / 5.0) * 0.10);
+                BigDecimal tierPrice = base.multiply(BigDecimal.valueOf(discount));
+                
+                priceOptions.add(new OpenClassResponse.PriceTierDto(start + "-" + end + " Students", tierPrice));
+                if (end == max) break;
+            }
+        }
+
+        // --- SCHEDULE MAPPING ---
         List<OpenClassResponse.ScheduleDto> availableSlots = entity.getSchedules().stream()
                 .flatMap(config -> config.getIndividualSlots().stream())
                 .filter(s -> !s.isBooked())
@@ -183,7 +201,7 @@ public class OpenClassServiceImpl implements OpenClassService {
                         .build())
                 .collect(Collectors.toList());
 
-        String tutorImage = (t.getMedia() != null) ? t.getMedia().getProfileImageUrl() : null;
+        String tutorImg = (t.getMedia() != null) ? t.getMedia().getProfileImageUrl() : null;
 
         return OpenClassResponse.builder()
                 .classId(entity.getId())
@@ -192,13 +210,13 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .status(entity.getStatus().name())
                 .tutorId(t.getId())
                 .tutorName(t.getUser().getFullname())
-                .tutorImage(tutorImage)
+                .tutorImage(tutorImg)
                 .tutorRating(t.getAverageRating())
-                .yearsOfExperience(t.getYearsOfExperience())
                 .location(entity.getLocation().getDistrict() + ", " + entity.getLocation().getCity())
-                .specificAddress(entity.getSpecificAddress())
                 .subjects(entity.getSubjects().stream().map(Subject::getName).collect(Collectors.toList()))
-                .pricing(entity.getPriceOptions())
+                .basePrice(base)
+                .maxStudents(max)
+                .priceOptions(priceOptions)
                 .availableSlots(availableSlots)
                 .build();
     }
@@ -247,7 +265,8 @@ public class OpenClassServiceImpl implements OpenClassService {
     @Override
     @Transactional
     public void deleteClass(Long id) {
-        OpenClass entity = openClassRepository.findById(id).orElseThrow();
+        OpenClass entity = openClassRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Class not found"));
         if (!entity.getTutor().getId().equals(getCurrentTutor().getId())) {
             throw new RuntimeException("Unauthorized");
         }
@@ -257,18 +276,6 @@ public class OpenClassServiceImpl implements OpenClassService {
     private Tutor getCurrentTutor() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return tutorRepository.findByUserEmail(email)
-                .orElseThrow(() -> new RuntimeException("Tutor profile not found for user: " + email));
-    }
-
-    private String saveImage(MultipartFile file) {
-        try {
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            Path path = Paths.get(UPLOAD_DIR + fileName);
-            Files.createDirectories(path.getParent());
-            Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
-            return "/" + UPLOAD_DIR + fileName;
-        } catch (IOException e) { 
-            throw new RuntimeException("Failed to store image", e); 
-        }
+                .orElseThrow(() -> new RuntimeException("Tutor profile not found for: " + email));
     }
 }

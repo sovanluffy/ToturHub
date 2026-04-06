@@ -24,5 +24,6 @@ public class BookingResponse {
     private LocalTime endTime;
     private BookingStatus status;
     private String note;
+    private String telegram;
     private LocalDateTime createdAt; // Must be LocalDateTime to match Entity
 }

@@ -28,7 +28,9 @@ public class OpenClassResponse {
     // Data Lists
     private List<String> subjects;
     private Set<String> learningModes;
-    private Map<Integer, BigDecimal> pricing;
+    private BigDecimal basePrice;
+    private Integer maxStudents;
+    private List<PriceTierDto> priceOptions;
     private List<ScheduleDto> availableSlots;
 
     @Data
@@ -39,5 +41,12 @@ public class OpenClassResponse {
         private Long id;
         private String timeRange;
         private boolean isBooked;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class PriceTierDto {
+        private String label;      // e.g. "5-10 Students"
+        private BigDecimal price;  // Calculated price per person
     }
 }

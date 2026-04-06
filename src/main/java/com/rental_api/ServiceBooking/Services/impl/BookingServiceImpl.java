@@ -47,6 +47,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setUser(student); // Saves to student_id
         booking.setOpenClass(openClass);
         booking.setScheduleConfig(selectedConfig); 
+        booking.setTelegram(request.getTelegram()); 
         
         // NEW: Link the Tutor from the OpenClass to the Booking
         booking.setTutor(openClass.getTutor()); // Saves to tutor_id
@@ -61,19 +62,20 @@ public class BookingServiceImpl implements BookingService {
         selectedConfig.getIndividualSlots().forEach(slot -> slot.setBooked(true));
     }
 
-    // 5. Return Response (Fixed Semicolon and Type Casting)
+  
     return new BookingResponse(
             savedBooking.getId(),
             selectedConfig.getId(),
-            selectedConfig.getScheduleType(), // No .name() needed if it's a String
+            selectedConfig.getScheduleType(),
             selectedConfig.getStartDate(),
             selectedConfig.getEndDate(),
             selectedConfig.getStartTime(),
             selectedConfig.getEndTime(),
             savedBooking.getStatus(),
             savedBooking.getNote(),
-            savedBooking.getCreatedAt() // Ensure DTO is LocalDateTime
-    ); // Added missing semicolon
+            savedBooking.getTelegram(),
+            savedBooking.getCreatedAt() 
+    ); 
     }
 
     @Override
@@ -90,6 +92,7 @@ public class BookingServiceImpl implements BookingService {
                 booking.getScheduleConfig().getEndTime(),
                 booking.getStatus(),
                 booking.getNote(),
+                booking.getTelegram(),
                 booking.getCreatedAt()
         )).collect(Collectors.toList());
     }
@@ -108,6 +111,7 @@ public class BookingServiceImpl implements BookingService {
                 booking.getScheduleConfig().getEndTime(),
                 booking.getStatus(),
                 booking.getNote(),
+                booking.getTelegram(),
                 booking.getCreatedAt()
         )).collect(Collectors.toList());
     }
@@ -129,6 +133,7 @@ public class BookingServiceImpl implements BookingService {
                 updatedBooking.getScheduleConfig().getEndTime(),
                 updatedBooking.getStatus(),
                 updatedBooking.getNote(),
+                updatedBooking.getTelegram(),
                 updatedBooking.getCreatedAt()
         );
     }
@@ -150,6 +155,7 @@ public class BookingServiceImpl implements BookingService {
                 updatedBooking.getScheduleConfig().getEndTime(),
                 updatedBooking.getStatus(),
                 updatedBooking.getNote(),
+                updatedBooking.getTelegram(),
                 updatedBooking.getCreatedAt()
         );
     }

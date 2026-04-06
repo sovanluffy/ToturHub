@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class BookingClassRequest {     
-    private Long scheduleId;          
+    private Long scheduleId;
+    private String telegram;
     private String note;
 }

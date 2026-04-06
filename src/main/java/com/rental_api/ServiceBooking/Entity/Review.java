@@ -1,6 +1,10 @@
 package com.rental_api.ServiceBooking.Entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.*;
 
 @Entity
@@ -12,7 +16,14 @@ public class Review {
     private Long id;
 
     private String comment;
-    private Integer rating; // e.g., 1 to 5 stars
+
+    @Max(5)
+    @Min(1)
+    private Integer rating; 
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_id")
+    private OpenClass openClass; 
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id")
@@ -20,5 +31,13 @@ public class Review {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id")
-    private User student; // The user who wrote the review
+    private User student; 
+
+
+    private LocalDateTime createAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createAt = LocalDateTime.now();
+    }
 }

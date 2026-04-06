@@ -23,7 +23,8 @@ public class OpenClassRequest {
     private Long locationId; 
     private String specificAddress;
 
-    private Map<Integer, BigDecimal> priceOptions;
+    private BigDecimal basePrice;   // New field
+    private Integer maxStudents;
 
     // --- RECURRING SCHEDULE LOGIC ---
     // Change from single fields to a List to support "Daily AND Weekend"

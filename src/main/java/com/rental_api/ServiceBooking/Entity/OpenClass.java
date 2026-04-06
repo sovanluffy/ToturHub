@@ -43,11 +43,11 @@ public class OpenClass {
     private ClassStatus status = ClassStatus.OPEN;
 
     // --- 💰 PRICING (Map: Student Count -> Price) ---
-    @ElementCollection
-    @CollectionTable(name = "class_pricing", joinColumns = @JoinColumn(name = "class_id"))
-    @MapKeyColumn(name = "student_group_size")
-    @Column(name = "price_amount")
-    private Map<Integer, BigDecimal> priceOptions;
+    @Column(name = "base_price")
+    private BigDecimal basePrice;
+
+    @Column(name = "max_students")
+    private Integer maxStudents; // Set to 20 by default or via request
 
     // --- 📍 LOCATION (Relationship to Location Entity) ---
     @ManyToOne(fetch = FetchType.LAZY)
@@ -77,10 +77,11 @@ public class OpenClass {
 
     // --- ENUMS ---
     public enum LearningMode { 
-        STUDENT_HOME, TUTOR_HOME, ONLINE, OUTSIDE 
+        STUDENT_HOME, TUTOR_CLASS, ONLINE, OUTSIDE 
     }
     
     public enum ClassStatus { 
+        
         OPEN, CLOSED, FULL, ARCHIVED 
     }
 }
