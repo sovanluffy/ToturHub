@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
+
+
 @Entity
 @Data
 @AllArgsConstructor
@@ -22,8 +24,7 @@ public class ClassSchedule {
     @Enumerated(EnumType.STRING)
     private ScheduleType type; // DAILY, WEEKEND, SPECIFIC_DATE
 
-    @Builder.Default
-    private boolean isBooked = false;
+  
 
     @ManyToOne
     @JoinColumn(name = "open_class_id")

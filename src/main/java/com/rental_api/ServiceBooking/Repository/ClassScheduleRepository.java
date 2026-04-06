@@ -8,8 +8,8 @@ import java.util.List;
 @Repository
 public interface ClassScheduleRepository extends JpaRepository<ClassSchedule, Long> {
     
-    // Find all available slots for a specific class
-    List<ClassSchedule> findByOpenClassIdAndIsBookedFalse(Long openClassId);
+    // // Find all available slots for a specific class
+    // List<ClassSchedule> findByOpenClassIdAndIsBookedFalse(Long openClassId);
     
     // Find all slots for a specific tutor
     List<ClassSchedule> findByOpenClassTutorId(Long tutorId);

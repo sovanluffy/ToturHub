@@ -8,14 +8,12 @@ import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor 
@@ -42,78 +40,30 @@ public class BookingServiceImpl implements BookingService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
-        // 3. Create the Booking
+        // 3. CAPACITY CHECK (NEW)
+        // Count confirmed bookings for this specific class/schedule
+        long confirmedBookings = bookingRepository.countByOpenClassIdAndStatus(openClassId, BookingStatus.CONFIRMED);
+        
+        if (confirmedBookings >= openClass.getMaxStudents()) {
+            throw new RuntimeException("This class is already full! (Max: " + openClass.getMaxStudents() + ")");
+        }
+
+        // 4. Create the Booking
         BookingClass booking = new BookingClass();
-        booking.setUser(student); // Saves to student_id
+        booking.setUser(student); 
         booking.setOpenClass(openClass);
         booking.setScheduleConfig(selectedConfig); 
         booking.setTelegram(request.getTelegram()); 
-        
-        // NEW: Link the Tutor from the OpenClass to the Booking
-        booking.setTutor(openClass.getTutor()); // Saves to tutor_id
-        
-        booking.setStatus(BookingStatus.PENDING);
+        booking.setTutor(openClass.getTutor()); 
+        booking.setStatus(BookingStatus.PENDING); // Start as Pending
         booking.setNote(request.getNote());
         
         BookingClass savedBooking = bookingRepository.save(booking);
 
-    // 4. Update Slots
-    if (selectedConfig.getIndividualSlots() != null) {
-        selectedConfig.getIndividualSlots().forEach(slot -> slot.setBooked(true));
-    }
+        // 5. REMOVED: slot.setBooked(true) 
+        // We do not setBooked(true) anymore because we want other students to be able to book too!
 
-  
-    return new BookingResponse(
-            savedBooking.getId(),
-            selectedConfig.getId(),
-            selectedConfig.getScheduleType(),
-            selectedConfig.getStartDate(),
-            selectedConfig.getEndDate(),
-            selectedConfig.getStartTime(),
-            selectedConfig.getEndTime(),
-            savedBooking.getStatus(),
-            savedBooking.getNote(),
-            savedBooking.getTelegram(),
-            savedBooking.getCreatedAt() 
-    ); 
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<BookingResponse> getBookingsByClassId(Long openClassId) {
-        List<BookingClass> bookings = bookingRepository.findByOpenClassId(openClassId);
-        return bookings.stream().map(booking -> new BookingResponse(
-                booking.getId(),
-                booking.getScheduleConfig().getId(),
-                booking.getScheduleConfig().getScheduleType(),
-                booking.getScheduleConfig().getStartDate(),
-                booking.getScheduleConfig().getEndDate(),
-                booking.getScheduleConfig().getStartTime(),
-                booking.getScheduleConfig().getEndTime(),
-                booking.getStatus(),
-                booking.getNote(),
-                booking.getTelegram(),
-                booking.getCreatedAt()
-        )).collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<BookingResponse> getBookingsByUserId(Long userId) {
-        List<BookingClass> bookings = bookingRepository.findByUserId(userId);
-        return bookings.stream().map(booking -> new BookingResponse(
-                booking.getId(),
-                booking.getScheduleConfig().getId(),
-                booking.getScheduleConfig().getScheduleType(),
-                booking.getScheduleConfig().getStartDate(),
-                booking.getScheduleConfig().getEndDate(),
-                booking.getScheduleConfig().getStartTime(),
-                booking.getScheduleConfig().getEndTime(),
-                booking.getStatus(),
-                booking.getNote(),
-                booking.getTelegram(),
-                booking.getCreatedAt()
-        )).collect(Collectors.toList());
+        return mapToResponse(savedBooking);
     }
 
     @Override
@@ -121,21 +71,17 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse conformBooking(Long bookingId) {
         BookingClass booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found")); 
+        
+        // Final check before confirming: Is there still room?
+        long confirmedCount = bookingRepository.countByOpenClassIdAndStatus(
+                booking.getOpenClass().getId(), BookingStatus.CONFIRMED);
+        
+        if (confirmedCount >= booking.getOpenClass().getMaxStudents()) {
+            throw new RuntimeException("Cannot confirm: Class capacity reached.");
+        }
+
         booking.setStatus(BookingStatus.CONFIRMED);
-        BookingClass updatedBooking = bookingRepository.save(booking);
-        return new BookingResponse(
-                updatedBooking.getId(),
-                updatedBooking.getScheduleConfig().getId(),
-                updatedBooking.getScheduleConfig().getScheduleType(),
-                updatedBooking.getScheduleConfig().getStartDate(),
-                updatedBooking.getScheduleConfig().getEndDate(),
-                updatedBooking.getScheduleConfig().getStartTime(),
-                updatedBooking.getScheduleConfig().getEndTime(),
-                updatedBooking.getStatus(),
-                updatedBooking.getNote(),
-                updatedBooking.getTelegram(),
-                updatedBooking.getCreatedAt()
-        );
+        return mapToResponse(bookingRepository.save(booking));
     }
 
     @Override
@@ -144,19 +90,38 @@ public class BookingServiceImpl implements BookingService {
         BookingClass booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking.setStatus(BookingStatus.REJECTED);
-        BookingClass updatedBooking = bookingRepository.save(booking);
+        return mapToResponse(bookingRepository.save(booking));
+    }
+
+    // Helper method to keep code clean
+    private BookingResponse mapToResponse(BookingClass b) {
+        ScheduleConfig sc = b.getScheduleConfig();
         return new BookingResponse(
-                updatedBooking.getId(),
-                updatedBooking.getScheduleConfig().getId(),
-                updatedBooking.getScheduleConfig().getScheduleType(),
-                updatedBooking.getScheduleConfig().getStartDate(),  
-                updatedBooking.getScheduleConfig().getEndDate(),
-                updatedBooking.getScheduleConfig().getStartTime(),
-                updatedBooking.getScheduleConfig().getEndTime(),
-                updatedBooking.getStatus(),
-                updatedBooking.getNote(),
-                updatedBooking.getTelegram(),
-                updatedBooking.getCreatedAt()
+                b.getId(),
+                sc.getId(),
+                sc.getScheduleType(),
+                sc.getStartDate(),
+                sc.getEndDate(),
+                sc.getStartTime(),
+                sc.getEndTime(),
+                b.getStatus(),
+                b.getNote(),
+                b.getTelegram(),
+                b.getCreatedAt()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getBookingsByClassId(Long openClassId) {
+        return bookingRepository.findByOpenClassId(openClassId).stream()
+                .map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getBookingsByUserId(Long userId) {
+        return bookingRepository.findByUserId(userId).stream()
+                .map(this::mapToResponse).collect(Collectors.toList());
     }
 }

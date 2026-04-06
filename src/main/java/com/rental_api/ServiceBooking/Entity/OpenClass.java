@@ -55,12 +55,14 @@ public class OpenClass {
     private Location location; 
 
     // Specific details like "Street 289, House #12"
+    @Column(name = "specific_address")
     private String specificAddress;
 
     @ElementCollection(targetClass = LearningMode.class)
     @CollectionTable(name = "class_learning_modes", joinColumns = @JoinColumn(name = "class_id"))
     @Enumerated(EnumType.STRING)
-    private Set<LearningMode> learningModes;
+    @Builder.Default // <--- ADD THIS
+    private Set<LearningMode> learningModes = new HashSet<>(); // Initialize here
 
     // Inside OpenClass.java
     @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
