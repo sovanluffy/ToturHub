@@ -2,6 +2,7 @@ package com.rental_api.ServiceBooking.Dto.Response;
 
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.*;
 
 @Data
@@ -20,7 +21,7 @@ public class OpenClassResponse {
     private Double tutorRating;
 
     // Location Info
-    private String location; // Formatted as "District, City"
+    private String location; 
     private String specificAddress;
 
     // Data Lists
@@ -30,25 +31,28 @@ public class OpenClassResponse {
     private Integer maxStudents;
     private Integer currentStudents;
     private List<PriceTierDto> priceOptions;
-    private List<ScheduleDto> availableSlots;
 
-    // Inside OpenClassResponse.java
-
+    // ✅ Change availableSlots to schedules to match Frontend expectation
+    private List<ScheduleConfigResponse> schedules; 
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ScheduleDto {
-        private Long id;
-        private String timeRange;
-        private Integer availableSpots;
+    public static class ScheduleConfigResponse {
+        private Long id; // The ScheduleConfig ID needed for booking
+        private String scheduleType; // DAILY, WEEKEND, etc.
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private String startTime; 
+        private String endTime;
     }
 
     @Data
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class PriceTierDto {
-        private String label;      // e.g. "5-10 Students"
-        private BigDecimal price;  // Calculated price per person
+        private String label;      
+        private BigDecimal price;  
     }
 }
