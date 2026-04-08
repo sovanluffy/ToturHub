@@ -132,7 +132,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /**
-     * Helper method to map Entity to DTO
+     * Helper method to map Entity to DTO clear
      */
     private BookingResponse mapToResponse(BookingClass b, ScheduleConfig s) {
         return new BookingResponse(
