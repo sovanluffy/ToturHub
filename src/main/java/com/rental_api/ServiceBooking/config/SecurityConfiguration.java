@@ -108,7 +108,7 @@ public class SecurityConfiguration {
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Stateless JWT
+                // ✅ Stateless JWT1
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
