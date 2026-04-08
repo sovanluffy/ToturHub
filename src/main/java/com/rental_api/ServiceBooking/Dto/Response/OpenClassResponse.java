@@ -17,9 +17,7 @@ public class OpenClassResponse {
     // Tutor Info
     private Long tutorId;
     private String tutorName;
-    private String tutorImage; 
     private Double tutorRating;
-    private Integer yearsOfExperience;
 
     // Location Info
     private String location; // Formatted as "District, City"
@@ -30,8 +28,12 @@ public class OpenClassResponse {
     private Set<String> learningModes;
     private BigDecimal basePrice;
     private Integer maxStudents;
+    private Integer currentStudents;
     private List<PriceTierDto> priceOptions;
     private List<ScheduleDto> availableSlots;
+
+    // Inside OpenClassResponse.java
+
 
     @Data
     @Builder
@@ -40,7 +42,7 @@ public class OpenClassResponse {
     public static class ScheduleDto {
         private Long id;
         private String timeRange;
-        private boolean isBooked;
+        private Integer availableSpots;
     }
 
     @Data

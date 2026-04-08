@@ -10,6 +10,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
     import jakarta.persistence.GenerationType;
     import jakarta.persistence.Id;
@@ -45,6 +46,10 @@ public class ScheduleConfig {
     @ManyToOne
     @JoinColumn(name = "open_class_id")
     private OpenClass openClass;
+
+    @OneToMany(mappedBy = "scheduleConfig", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<BookingClass> bookings = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(name = "schedule_config_times", joinColumns = @JoinColumn(name = "config_id"))

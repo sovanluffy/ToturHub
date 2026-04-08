@@ -29,58 +29,65 @@ public class TutorServiceImpl implements TutorService {
     private final CloudinaryService cloudinaryService;
 
     // ---------------------------------------------------------
-    // 1. UPDATE PROFILE (WITH IMAGE SYNC)
+    // 1. UPDATE PROFILE (Syncs Images, Video, and Certificates)
     // ---------------------------------------------------------
     @Override
     @Transactional
     public void updateTutorProfile(TutorProfileRequest request,
                                    MultipartFile profileImg,
                                    MultipartFile videoFile,
-                                   MultipartFile coverImage,
+                                   MultipartFile coverImg,
                                    List<MultipartFile> certificates) {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        // Ensure the user actually has the TUTOR role (matching your JSON roles)
+        // Role Validation
         boolean isTutor = user.getRoles().stream()
                 .anyMatch(r -> r.getName().equalsIgnoreCase("TUTOR") || r.getName().equalsIgnoreCase("ROLE_TUTOR"));
-        
         if (!isTutor) throw new IllegalArgumentException("Access denied: Not a tutor");
 
+        // Fetch or Initialize Tutor Entity
         Tutor tutor = tutorRepository.findByUserEmail(email)
                 .orElseGet(() -> tutorRepository.save(Tutor.builder().user(user).build()));
 
+        // Initialize Media and handle mandatory fields
         TutorMedia media = tutor.getMedia();
         if (media == null) {
-            media = TutorMedia.builder().tutor(tutor).certificateImages(new ArrayList<>()).build();
+            media = TutorMedia.builder()
+                    .tutor(tutor)
+                    .mediaType("MIXED") // Fix: Satisfies @Column(nullable = false)
+                    .certificateImages(new ArrayList<>())
+                    .build();
             tutor.setMedia(media);
         }
 
         try {
-            // ✅ THE FIX: Save profile image to BOTH TutorMedia and User table
+            // Sync Profile Image to both TutorMedia and User (for global avatar consistency)
             if (profileImg != null && !profileImg.isEmpty()) {
                 String uploadedUrl = cloudinaryService.uploadFile(profileImg);
                 media.setProfileImageUrl(uploadedUrl);
-                
-                // Sync to User table so the 'u.avatarUrl' in JPQL query isn't null
                 user.setAvatarUrl(uploadedUrl);
                 userRepository.save(user); 
             }
 
+            // Upload Intro Video
             if (videoFile != null && !videoFile.isEmpty()) {
                 media.setIntroVideoUrl(cloudinaryService.uploadFile(videoFile));
             }
 
-            if (coverImage != null && !coverImage.isEmpty()) {
-                media.setCoverImageUrl(cloudinaryService.uploadFile(coverImage));
+            // Upload Cover Image
+            if (coverImg != null && !coverImg.isEmpty()) {
+                media.setCoverImageUrl(cloudinaryService.uploadFile(coverImg));
             }
 
+            // Upload Multiple Certificates
             if (certificates != null && !certificates.isEmpty()) {
                 List<String> urls = certificates.stream()
                         .filter(f -> f != null && !f.isEmpty())
-                        .map(cloudinaryService::uploadFile).toList();
+                        .map(cloudinaryService::uploadFile)
+                        .toList();
                 media.getCertificateImages().addAll(urls);
             }
         } catch (Exception e) {
@@ -91,40 +98,12 @@ public class TutorServiceImpl implements TutorService {
         tutor.setBio(request.getBio());
         refreshCollections(tutor, request);
         
-        // saveAndFlush ensures immediate synchronization before frontend re-fetches
+        // saveAndFlush ensures the DB is updated before the Controller re-fetches for the response
         tutorRepository.saveAndFlush(tutor);
     }
 
     // ---------------------------------------------------------
-    // 2. PUBLISH / UNPUBLISH LOGIC
-    // ---------------------------------------------------------
-    @Override
-    @Transactional
-    public void publishProfile() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        Tutor tutor = tutorRepository.findByUserEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found. Update profile first."));
-        
-        if (tutor.getBio() == null || tutor.getBio().isBlank()) {
-            throw new IllegalArgumentException("Bio is required before publishing.");
-        }
-        
-        tutor.setPublic(true);
-        tutorRepository.save(tutor);
-    }
-
-    @Override
-    @Transactional
-    public void unpublishProfile() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        tutorRepository.findByUserEmail(email).ifPresent(t -> {
-            t.setPublic(false);
-            tutorRepository.save(t);
-        });
-    }
-
-    // ---------------------------------------------------------
-    // 3. FETCHING PROFILES (FIXES NULL PICTURE FALLBACK)
+    // 2. FETCHING PROFILES
     // ---------------------------------------------------------
     @Override
     @Transactional(readOnly = true)
@@ -144,12 +123,12 @@ public class TutorServiceImpl implements TutorService {
     }
 
     // ---------------------------------------------------------
-    // 4. MAPPING & HELPERS
+    // 3. MAPPING (Fixes the 'null' JSON issue)
     // ---------------------------------------------------------
     private TutorFullViewResponse mapToResponse(Tutor t) {
         TutorMedia media = t.getMedia();
         
-        // ✅ PRIORITY CHECK: Use TutorMedia image, else fallback to User avatarUrl
+        // Fallback logic for Profile Picture
         String profilePic = (media != null && media.getProfileImageUrl() != null) 
                             ? media.getProfileImageUrl() 
                             : t.getUser().getAvatarUrl();
@@ -157,8 +136,11 @@ public class TutorServiceImpl implements TutorService {
         return TutorFullViewResponse.builder()
                 .tutorId(t.getId())
                 .fullname(t.getUser().getFullname())
-                .profilePicture(profilePic) // This will never be null now
+                .profilePicture(profilePic)
                 .bio(t.getBio())
+                // FIXED: Explicitly mapping media fields from Entity to Response DTO
+                .introVideoUrl(media != null ? media.getIntroVideoUrl() : null)
+                .certificateImages(media != null ? media.getCertificateImages() : new ArrayList<>())
                 .rating(t.getAverageRating() != null ? t.getAverageRating() : 0.0)
                 .studentsTaught(t.getTotalStudentsTaught() != null ? t.getTotalStudentsTaught() : 0)
                 .isPublic(t.isPublic())
@@ -172,7 +154,7 @@ public class TutorServiceImpl implements TutorService {
     }
 
     private void refreshCollections(Tutor tutor, TutorProfileRequest request) {
-        // Education refresh
+        // Clear and reload Education
         if (tutor.getEducation() == null) tutor.setEducation(new ArrayList<>());
         tutor.getEducation().clear();
         if (request.getEducation() != null) {
@@ -181,7 +163,7 @@ public class TutorServiceImpl implements TutorService {
             ));
         }
 
-        // Experience refresh
+        // Clear and reload Experience
         if (tutor.getExperience() == null) tutor.setExperience(new ArrayList<>());
         tutor.getExperience().clear();
         if (request.getExperience() != null) {
@@ -189,6 +171,32 @@ public class TutorServiceImpl implements TutorService {
                 Experience.builder().companyName(ex.getCompany()).role(ex.getRole()).duration(ex.getDuration()).tutor(tutor).build()
             ));
         }
+    }
+
+    // ---------------------------------------------------------
+    // 4. PUBLISH / UNPUBLISH / ADMIN
+    // ---------------------------------------------------------
+    @Override
+    @Transactional
+    public void publishProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Tutor tutor = tutorRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor profile not found."));
+        if (tutor.getBio() == null || tutor.getBio().isBlank()) {
+            throw new IllegalArgumentException("Bio is required before publishing.");
+        }
+        tutor.setPublic(true);
+        tutorRepository.save(tutor);
+    }
+
+    @Override
+    @Transactional
+    public void unpublishProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        tutorRepository.findByUserEmail(email).ifPresent(t -> {
+            t.setPublic(false);
+            tutorRepository.save(t);
+        });
     }
 
     @Override
@@ -203,6 +211,9 @@ public class TutorServiceImpl implements TutorService {
     @Override
     @Transactional
     public void incrementStudentCount(Long tutorId) {
-        tutorRepository.findById(tutorId).ifPresent(t -> t.setTotalStudentsTaught(t.getTotalStudentsTaught() + 1));
+        tutorRepository.findById(tutorId).ifPresent(t -> {
+            int count = (t.getTotalStudentsTaught() != null) ? t.getTotalStudentsTaught() : 0;
+            t.setTotalStudentsTaught(count + 1);
+        });
     }
 }
