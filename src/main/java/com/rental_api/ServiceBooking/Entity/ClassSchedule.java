@@ -1,11 +1,8 @@
 package com.rental_api.ServiceBooking.Entity;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
-
-
 
 @Entity
 @Data
@@ -20,11 +17,12 @@ public class ClassSchedule {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 
-    // Add these to handle Daily vs Weekend
-    @Enumerated(EnumType.STRING)
-    private ScheduleType type; // DAILY, WEEKEND, SPECIFIC_DATE
+    // --- ADD THIS FIELD ---
+    @Builder.Default
+    private boolean booked = false; 
 
-  
+    @Enumerated(EnumType.STRING)
+    private ScheduleType type; // DAILY, WEEKEND, ONCE
 
     @ManyToOne
     @JoinColumn(name = "open_class_id")
