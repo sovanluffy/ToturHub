@@ -17,12 +17,13 @@ public class ClassSchedule {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 
-    // --- ADD THIS FIELD ---
+    // ✅ Match the existing database column name exactly
     @Builder.Default
+    @Column(name = "is_booked", nullable = false) 
     private boolean booked = false; 
 
     @Enumerated(EnumType.STRING)
-    private ScheduleType type; // DAILY, WEEKEND, ONCE
+    private ScheduleType type; 
 
     @ManyToOne
     @JoinColumn(name = "open_class_id")

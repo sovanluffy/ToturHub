@@ -23,50 +23,55 @@ public class BookingServiceImpl implements BookingService {
     private final OpenClassRepository openClassRepository;
     private final BookingRepository bookingRepository; 
     private final UserRepository userRepository;
+    private final ClassScheduleRepository classScheduleRepository; // ✅ Added this
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional 
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
-        // 1. Identify the student from the Security Context (JWT Principal)
+        // 1. Identify the student
         String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
         User student = userRepository.findByEmail(userEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
-        // 2. Load the target Class and the specific Schedule Config
+        // 2. Load the Class
         OpenClass openClass = openClassRepository.findById(openClassId)
                 .orElseThrow(() -> new ResourceNotFoundException("Open Class not found with ID: " + openClassId));
 
-        ScheduleConfig selectedConfig = openClass.getSchedules().stream()
-                .filter(config -> config.getId().equals(request.getScheduleId()))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Schedule slot not found"));
+        // 3. Find the specific slot being booked (ClassSchedule)
+        // We now book based on the specific slot ID sent from the frontend
+        ClassSchedule selectedSlot = classScheduleRepository.findById(request.getScheduleId())
+                .orElseThrow(() -> new ResourceNotFoundException("Specific time slot not found"));
 
-        // 3. Create the Booking entry
+        if (selectedSlot.isBooked()) {
+            throw new RuntimeException("This time slot is already booked!");
+        }
+
+        // 4. Create the Booking entry
         BookingClass booking = new BookingClass();
         booking.setUser(student); 
         booking.setOpenClass(openClass);
-        booking.setScheduleConfig(selectedConfig); 
-        booking.setTutor(openClass.getTutor()); // Link tutor from the class
+        booking.setScheduleConfig(selectedSlot.getConfig()); // Link to parent config
+        booking.setTutor(openClass.getTutor());
         booking.setTelegram(request.getTelegram()); 
         booking.setStatus(BookingStatus.PENDING);
         booking.setNote(request.getNote());
         
         BookingClass savedBooking = bookingRepository.save(booking);
 
-        // 4. Update Slot Availability (Logic for individual slots)
-        if (selectedConfig.getIndividualSlots() != null) {
-            selectedConfig.getIndividualSlots().forEach(slot -> slot.setBooked(true));
-        }
+        // 5. Update Slot Availability
+        // ✅ Uses the field that matches your 'is_booked' column in the database
+        selectedSlot.setBooked(true);
+        classScheduleRepository.save(selectedSlot);
 
-        // 5. NOTIFY TUTOR: Send real-time alert to Tutor's email
+        // 6. NOTIFY TUTOR
         messagingTemplate.convertAndSendToUser(
             openClass.getTutor().getUser().getEmail(), 
             "/queue/notifications", 
             "New booking request from " + student.getFullname() + " for: " + openClass.getTitle()
         );
 
-        return mapToResponse(savedBooking, selectedConfig);
+        return mapToResponse(savedBooking, selectedSlot.getConfig());
     }
 
     @Override
@@ -78,7 +83,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         BookingClass updated = bookingRepository.save(booking);
 
-        // NOTIFY STUDENT: Booking Approved
         messagingTemplate.convertAndSendToUser(
             booking.getUser().getEmail(),
             "/queue/notifications",
@@ -95,9 +99,16 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         
         booking.setStatus(BookingStatus.REJECTED);
+        
+        // ✅ If rejected, we should make the slot available again
+        // Note: This assumes 1 booking = 1 slot. 
+        // If your ScheduleConfig contains multiple slots, you'd loop them here.
+        if (booking.getScheduleConfig() != null && booking.getScheduleConfig().getIndividualSlots() != null) {
+            booking.getScheduleConfig().getIndividualSlots().forEach(slot -> slot.setBooked(false));
+        }
+
         BookingClass updated = bookingRepository.save(booking);
 
-        // NOTIFY STUDENT: Booking Rejected
         messagingTemplate.convertAndSendToUser(
             booking.getUser().getEmail(),
             "/queue/notifications",
@@ -131,18 +142,19 @@ public class BookingServiceImpl implements BookingService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Helper method to map Entity to DTO
-     */
     private BookingResponse mapToResponse(BookingClass b, ScheduleConfig s) {
+        // Handle potential null config safely
+        Long configId = (s != null) ? s.getId() : null;
+        String type = (s != null) ? s.getScheduleType() : "N/A";
+        
         return new BookingResponse(
                 b.getId(), 
-                s.getId(), 
-                s.getScheduleType(),
-                s.getStartDate(), 
-                s.getEndDate(), 
-                s.getStartTime(), 
-                s.getEndTime(),
+                configId, 
+                type,
+                (s != null ? s.getStartDate() : null), 
+                (s != null ? s.getEndDate() : null), 
+                (s != null ? s.getStartTime() : null), 
+                (s != null ? s.getEndTime() : null),
                 b.getStatus(), 
                 b.getNote(), 
                 b.getTelegram(), 

@@ -39,7 +39,7 @@ services:
       DB_NAME: ${DB_NAME:-toturHub}
       DB_USERNAME: ${DB_USERNAME:-neondb_owner}
       DB_PASSWORD: ${DB_PASSWORD:-npg_UpsgQvfbt87d}
-      DB_SSLMODE: ${DB_SSLMODE:-require}
+      DB_SSLMODE: require # NEON REQUIRES SSL
 
       # JWT
       JWT_SECRET: ${JWT_SECRET:-MySuperSecretKeyWith64+CharactersForDevOnly1234567890!}
