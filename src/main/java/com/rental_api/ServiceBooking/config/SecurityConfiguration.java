@@ -85,13 +85,30 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("TUTOR")
 
                         // Student
-                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/**").hasRole("STUDENT")
+// ✅ BOOKING CRUD SECURITY
+// Create: Only Students can create bookings
+.requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**").hasRole("STUDENT")
 
+// Read: Students can see their own, Tutors can see theirs, Admins see all
+.requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**").hasAnyRole("STUDENT", "ADMIN")
+.requestMatchers(HttpMethod.GET, "/api/v1/bookings/tutor/**").hasAnyRole("TUTOR", "ADMIN")
+.requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**").hasAnyRole("TUTOR", "ADMIN")
+
+// Update: Tutors confirm/reject, Students might update notes
+.requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm/**").hasRole("TUTOR")
+.requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/reject/**").hasRole("TUTOR")
+.requestMatchers(HttpMethod.PUT, "/api/v1/bookings/{id}").hasAnyRole("STUDENT", "ADMIN")
+
+// Delete: Usually only Admin or the Student (if still pending)
+.requestMatchers(HttpMethod.DELETE, "/api/v1/bookings/{id}").hasAnyRole("STUDENT", "ADMIN")
+
+// Catch-all for any other booking related authenticated requests
+.requestMatchers("/api/v1/bookings/**").authenticated()
                         // Others require authentication
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Stateless JWT
+                // ✅ Stateless JWT1
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
