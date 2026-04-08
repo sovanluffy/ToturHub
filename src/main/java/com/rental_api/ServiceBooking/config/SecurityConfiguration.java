@@ -42,6 +42,8 @@ public class SecurityConfiguration {
                         // Allow preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        .requestMatchers("/ws-notifications/**").permitAll()
+
                         // ✅ PUBLIC: Locations API (FIX 401)
                         .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
 

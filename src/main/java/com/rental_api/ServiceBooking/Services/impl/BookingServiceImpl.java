@@ -7,6 +7,8 @@ import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.BookingService;
+import com.rental_api.ServiceBooking.Services.NotificationService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ public class BookingServiceImpl implements BookingService {
     private final OpenClassRepository openClassRepository;
     private final BookingRepository bookingRepository; 
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional 
@@ -31,37 +34,44 @@ public class BookingServiceImpl implements BookingService {
         User student = userRepository.findByEmail(userEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // 2. Find Class & Config
+        // 2. Find Class
         OpenClass openClass = openClassRepository.findById(openClassId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
 
+        // 3. Find Schedule
         ScheduleConfig selectedConfig = openClass.getSchedules().stream()
                 .filter(config -> config.getId().equals(request.getScheduleId()))
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
-        // 3. CAPACITY CHECK (NEW)
-        // Count confirmed bookings for this specific class/schedule
+        // 4. Capacity Check
         long confirmedBookings = bookingRepository.countByOpenClassIdAndStatus(openClassId, BookingStatus.CONFIRMED);
-        
         if (confirmedBookings >= openClass.getMaxStudents()) {
-            throw new RuntimeException("This class is already full! (Max: " + openClass.getMaxStudents() + ")");
+            throw new RuntimeException("This class is full!");
         }
 
-        // 4. Create the Booking
+        // 5. Save Booking
         BookingClass booking = new BookingClass();
         booking.setUser(student); 
         booking.setOpenClass(openClass);
         booking.setScheduleConfig(selectedConfig); 
         booking.setTelegram(request.getTelegram()); 
         booking.setTutor(openClass.getTutor()); 
-        booking.setStatus(BookingStatus.PENDING); // Start as Pending
-        booking.setNote(request.getNote());
+        booking.setStatus(BookingStatus.PENDING);
+        
+        // CLEANUP: Strip carriage returns to prevent JSON errors (Fix for Code 13)
+        if (request.getNote() != null) {
+            booking.setNote(request.getNote().replace("\r", "").replace("\n", " "));
+        }
         
         BookingClass savedBooking = bookingRepository.save(booking);
 
-        // 5. REMOVED: slot.setBooked(true) 
-        // We do not setBooked(true) anymore because we want other students to be able to book too!
+        // 6. Notify the Tutor
+        String tutorEmail = openClass.getTutor().getUser().getEmail();
+        String message = "New booking request for " + openClass.getTitle() + " from " + student.getEmail();
+        
+        // Trigger notification
+        notificationService.sendNotification(tutorEmail, message);
 
         return mapToResponse(savedBooking);
     }
@@ -72,16 +82,23 @@ public class BookingServiceImpl implements BookingService {
         BookingClass booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found")); 
         
-        // Final check before confirming: Is there still room?
         long confirmedCount = bookingRepository.countByOpenClassIdAndStatus(
                 booking.getOpenClass().getId(), BookingStatus.CONFIRMED);
         
         if (confirmedCount >= booking.getOpenClass().getMaxStudents()) {
-            throw new RuntimeException("Cannot confirm: Class capacity reached.");
+            throw new RuntimeException("Capacity reached.");
         }
 
         booking.setStatus(BookingStatus.CONFIRMED);
-        return mapToResponse(bookingRepository.save(booking));
+        BookingClass confirmedBooking = bookingRepository.save(booking);
+
+        // Notify Student
+        notificationService.sendNotification(
+            booking.getUser().getEmail(), 
+            "Booking for " + booking.getOpenClass().getTitle() + " CONFIRMED!"
+        );
+
+        return mapToResponse(confirmedBooking);
     }
 
     @Override
@@ -89,11 +106,19 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse rejectBooking(Long bookingId) {
         BookingClass booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        
         booking.setStatus(BookingStatus.REJECTED);
-        return mapToResponse(bookingRepository.save(booking));
+        BookingClass rejectedBooking = bookingRepository.save(booking);
+
+        // Notify Student
+        notificationService.sendNotification(
+            booking.getUser().getEmail(), 
+            "Booking for " + booking.getOpenClass().getTitle() + " REJECTED."
+        );
+
+        return mapToResponse(rejectedBooking);
     }
 
-    // Helper method to keep code clean
     private BookingResponse mapToResponse(BookingClass b) {
         ScheduleConfig sc = b.getScheduleConfig();
         return new BookingResponse(
@@ -110,6 +135,7 @@ public class BookingServiceImpl implements BookingService {
                 b.getCreatedAt()
         );
     }
+
 
     @Override
     @Transactional(readOnly = true)
