@@ -7,10 +7,10 @@ import java.util.List;
 
 @Entity
 @Table(name = "subjects")
-@Getter 
-@Setter 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class Subject {
 

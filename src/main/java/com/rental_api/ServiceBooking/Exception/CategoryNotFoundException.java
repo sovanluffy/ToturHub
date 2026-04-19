@@ -1,4 +1,5 @@
 package com.rental_api.ServiceBooking.Exception;
+
 public class CategoryNotFoundException extends RuntimeException {
 
     public CategoryNotFoundException(Long id) {

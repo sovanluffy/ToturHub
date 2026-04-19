@@ -22,39 +22,47 @@ public class OpenClassController {
 
     private final OpenClassService openClassService;
 
-    // ================= CREATE (WITH IMAGE) =================
+    // ================= CREATE =================
     @Operation(summary = "Create Open Class with image")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<OpenClassResponse> createClass(
             @RequestPart("data") OpenClassRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {
         return new ResponseEntity<>(
-                openClassService.create(request, image),
+                openClassService.createClassWithImage(request, image),
                 HttpStatus.CREATED);
     }
 
-    // ================= UPDATE (WITH IMAGE) =================
-    @Operation(summary = "Update Open Class with image")
-    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    // ================= UPDATE =================
+    @Operation(summary = "Update Open Class")
+    @PutMapping("/{id}")
     public ResponseEntity<OpenClassResponse> updateClass(
             @PathVariable Long id,
-            @RequestPart("data") OpenClassRequest request,
-            @RequestPart(value = "image", required = false) MultipartFile image) {
+            @RequestBody OpenClassRequest request) {
         return ResponseEntity.ok(
-                openClassService.update(id, request, image));
+                openClassService.updateClass(id, request));
     }
 
     // ================= GET BY ID =================
     @Operation(summary = "Get class details")
     @GetMapping("/{id}")
     public ResponseEntity<OpenClassResponse> getDetails(@PathVariable Long id) {
-        return ResponseEntity.ok(openClassService.getById(id));
+        return ResponseEntity.ok(
+                openClassService.getClassDetails(id));
     }
 
     // ================= GET BY TUTOR =================
     @Operation(summary = "Get classes by tutor")
     @GetMapping("/tutor/{tutorId}")
     public ResponseEntity<List<OpenClassResponse>> getByTutor(@PathVariable Long tutorId) {
-        return ResponseEntity.ok(openClassService.getByTutor(tutorId));
+        return ResponseEntity.ok(
+                openClassService.findByTutorId(tutorId));
+    }
+
+    // ================= DELETE (OPTIONAL) =================
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        openClassService.deleteClass(id);
+        return ResponseEntity.ok().build();
     }
 }

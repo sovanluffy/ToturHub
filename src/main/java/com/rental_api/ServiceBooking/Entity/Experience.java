@@ -5,10 +5,10 @@ import lombok.*;
 
 @Entity
 @Table(name = "tutor_experiences")
-@Getter 
-@Setter 
-@Builder 
-@NoArgsConstructor 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class Experience {
 

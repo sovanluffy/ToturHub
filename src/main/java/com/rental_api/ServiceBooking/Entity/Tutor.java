@@ -38,7 +38,7 @@ public class Tutor {
     @Builder.Default
     @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Education> education = new ArrayList<>();
-    
+
     // --- Experience history ---
     @Builder.Default
     @OneToMany(mappedBy = "tutor", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -59,11 +59,7 @@ public class Tutor {
     // --- Subjects ---
     @Builder.Default
     @ManyToMany
-    @JoinTable(
-        name = "tutor_subjects",
-        joinColumns = @JoinColumn(name = "tutor_id"),
-        inverseJoinColumns = @JoinColumn(name = "subject_id")
-    )
+    @JoinTable(name = "tutor_subjects", joinColumns = @JoinColumn(name = "tutor_id"), inverseJoinColumns = @JoinColumn(name = "subject_id"))
     private List<Subject> subjects = new ArrayList<>();
 
     // --- Reviews ---

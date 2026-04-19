@@ -32,8 +32,7 @@ public class User implements UserDetails {
 
     // ❌ remove location from user if using Location entity
     // private String location;
-        private Long locationId; // <-- ADD THIS
-
+    private Long locationId; // <-- ADD THIS
 
     // Avatar URL for Cloudinary
     private String avatarUrl;
@@ -43,14 +42,12 @@ public class User implements UserDetails {
     @Builder.Default
     private Status status = Status.ACTIVE;
 
-    public enum Status { ACTIVE, PENDING, REJECTED, INACTIVE, DELETED }
+    public enum Status {
+        ACTIVE, PENDING, REJECTED, INACTIVE, DELETED
+    }
 
     @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
+    @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
@@ -70,7 +67,9 @@ public class User implements UserDetails {
     }
 
     @Override
-    public boolean isAccountNonExpired() { return true; }
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 
     @Override
     public boolean isAccountNonLocked() {
@@ -78,7 +77,9 @@ public class User implements UserDetails {
     }
 
     @Override
-    public boolean isCredentialsNonExpired() { return true; }
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
 
     @Override
     public boolean isEnabled() {

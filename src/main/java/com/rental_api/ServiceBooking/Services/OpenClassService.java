@@ -2,8 +2,6 @@ package com.rental_api.ServiceBooking.Services;
 
 import com.rental_api.ServiceBooking.Dto.Request.OpenClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.OpenClassResponse;
-import com.rental_api.ServiceBooking.Dto.Response.TutorCardResponse;
-
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -20,7 +18,7 @@ public interface OpenClassService {
 
     List<OpenClassResponse> findByTutorId(Long tutorId);
 
-    List<TutorCardResponse> getAllPublicCards();
+    List<OpenClassResponse> getAllPublicCards();
 
     void deleteClass(Long id);
 }

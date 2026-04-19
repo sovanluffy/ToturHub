@@ -7,10 +7,10 @@ import java.util.List;
 
 @Entity
 @Table(name = "tutor_media")
-@Getter 
-@Setter 
-@Builder 
-@NoArgsConstructor 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class TutorMedia {
 
@@ -36,10 +36,7 @@ public class TutorMedia {
 
     @Builder.Default
     @ElementCollection
-    @CollectionTable(
-        name = "tutor_certificates", 
-        joinColumns = @JoinColumn(name = "media_id")
-    )
+    @CollectionTable(name = "tutor_certificates", joinColumns = @JoinColumn(name = "media_id"))
     @Column(name = "certificate_url")
     private List<String> certificateImages = new ArrayList<>();
 }

@@ -9,7 +9,11 @@ import lombok.*;
 
 @Entity
 @Table(name = "reviews")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Review {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -19,11 +23,11 @@ public class Review {
 
     @Max(5)
     @Min(1)
-    private Integer rating; 
+    private Integer rating;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")
-    private OpenClass openClass; 
+    private OpenClass openClass;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id")
@@ -31,8 +35,7 @@ public class Review {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id")
-    private User student; 
-
+    private User student;
 
     private LocalDateTime createAt;
 

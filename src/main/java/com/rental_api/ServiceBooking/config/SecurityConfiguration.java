@@ -36,20 +36,20 @@ public class SecurityConfiguration {
         public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
                 http
-                                // ✅ CORS
+                                // ================= CORS =================
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 .csrf(AbstractHttpConfigurer::disable)
 
-                                // ✅ AUTHORIZATION
+                                // ================= AUTHORIZATION =================
                                 .authorizeHttpRequests(auth -> auth
 
-                                                // ✅ Allow preflight
+                                                // 🔓 Preflight
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                                                // 🔥 VERY IMPORTANT (WebSocket)
+                                                // 🔓 WebSocket
                                                 .requestMatchers("/ws/**").permitAll()
 
-                                                // ✅ PUBLIC APIs
+                                                // 🔓 Public APIs
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
 
                                                 .requestMatchers(
@@ -74,7 +74,7 @@ public class SecurityConfiguration {
                                                                 "/webjars/**")
                                                 .permitAll()
 
-                                                // Public GET APIs
+                                                // ================= PUBLIC GET APIs =================
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards")
@@ -91,13 +91,13 @@ public class SecurityConfiguration {
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/classes/open")
                                                 .hasRole("TUTOR")
 
-                                                // ================= BOOKING =================
+                                                // 🔥 OPEN CLASS MODULE (FIXED PATH)
+                                                .requestMatchers("/api/v1/open-classes/**").hasRole("TUTOR")
 
-                                                // CREATE
+                                                // ================= BOOKING =================
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**")
                                                 .hasRole("STUDENT")
 
-                                                // READ
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**")
                                                 .hasAnyRole("STUDENT", "ADMIN")
 
@@ -107,7 +107,6 @@ public class SecurityConfiguration {
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**")
                                                 .hasAnyRole("TUTOR", "ADMIN")
 
-                                                // UPDATE
                                                 .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm/**")
                                                 .hasRole("TUTOR")
 
@@ -117,27 +116,23 @@ public class SecurityConfiguration {
                                                 .requestMatchers(HttpMethod.PUT, "/api/v1/bookings/**")
                                                 .hasAnyRole("STUDENT", "ADMIN")
 
-                                                // DELETE
                                                 .requestMatchers(HttpMethod.DELETE, "/api/v1/bookings/**")
                                                 .hasAnyRole("STUDENT", "ADMIN")
 
                                                 // fallback
-                                                .requestMatchers("/api/v1/bookings/**").authenticated()
-
-                                                // everything else
                                                 .anyRequest().authenticated())
 
-                                // ✅ STATELESS
+                                // ================= SESSION =================
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                                // ✅ PROVIDER
+                                // ================= PROVIDER =================
                                 .authenticationProvider(authenticationProvider)
 
-                                // ✅ JWT FILTER
+                                // ================= JWT FILTER =================
                                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-                                // ✅ EXCEPTION HANDLING
+                                // ================= EXCEPTION =================
                                 .exceptionHandling(ex -> ex
                                                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                                                 .accessDeniedHandler(jwtAccessDeniedHandler));
