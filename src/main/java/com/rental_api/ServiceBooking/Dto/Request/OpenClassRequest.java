@@ -1,51 +1,47 @@
 package com.rental_api.ServiceBooking.Dto.Request;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.List;
 
 @Data
-@NoArgsConstructor // Crucial for Jackson!
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class OpenClassRequest {
+
     private String title;
     private String description;
+
     private List<Long> subjectIds;
-    private List<String> learningModes;
-    
-    private Long locationId; 
+
+    // ================= CLASS TYPE =================
+    private String classType; // ONLINE / STUDENT_HOME / TUTOR_CLASS
+
+    // ================= STATUS =================
+    private String status; // OPEN / CLOSED / FULL
+
+    private Long locationId;
     private String specificAddress;
 
-    private BigDecimal basePrice;   // New field
+    private BigDecimal basePrice;
     private Integer maxStudents;
 
-    // --- RECURRING SCHEDULE LOGIC ---
-    // Change from single fields to a List to support "Daily AND Weekend"
-    private List<ScheduleConfig> schedules;
+    // ================= LEARNING MODE =================
+    private List<String> learningModes;
+
+    // ================= SCHEDULE =================
+    private List<DayTimeSlotRequest> dayTimeSlots;
 
     @Data
-    @NoArgsConstructor // ADD THIS
-    @AllArgsConstructor // ADD THIS
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Builder
-    public static class ScheduleConfig {
-        private String scheduleType; // "DAILY", "WEEKEND", "WEEKDAY"
-        private LocalDate startDate;
-        private LocalDate endDate;
-        private List<TimeRangeRequest> timeRanges; 
-    }
-
-    @Data
-    @NoArgsConstructor // ADD THIS
-    @AllArgsConstructor // ADD THIS
-    @Builder
-    public static class TimeRangeRequest {
-        private String startTime; // "08:00"
-        private String endTime;   // "10:00"
+    public static class DayTimeSlotRequest {
+        private DayOfWeek day;
+        private String startTime;
+        private String endTime;
     }
 }

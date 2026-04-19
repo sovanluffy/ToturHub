@@ -19,11 +19,11 @@ public class ClassSchedule {
 
     // ✅ Match the existing database column name exactly
     @Builder.Default
-    @Column(name = "is_booked", nullable = false) 
-    private boolean booked = false; 
+    @Column(name = "is_booked", nullable = false)
+    private boolean booked = false;
 
     @Enumerated(EnumType.STRING)
-    private ScheduleType type; 
+    private ScheduleType type;
 
     @ManyToOne
     @JoinColumn(name = "open_class_id")
