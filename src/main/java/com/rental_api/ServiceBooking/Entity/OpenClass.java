@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -44,10 +43,6 @@ public class OpenClass {
     @Enumerated(EnumType.STRING)
     private ClassStatus status = ClassStatus.OPEN;
 
-    // ================= CLASS TYPE =================
-    @Enumerated(EnumType.STRING)
-    private ClassType classType;
-
     // ================= PRICE =================
     private BigDecimal basePrice;
     private Integer maxStudents;
@@ -78,12 +73,6 @@ public class OpenClass {
     }
 
     // ================= ENUMS =================
-
-    public enum ClassType {
-        ONLINE,
-        STUDENT_HOME,
-        TUTOR_CLASS
-    }
 
     public enum ClassStatus {
         OPEN,

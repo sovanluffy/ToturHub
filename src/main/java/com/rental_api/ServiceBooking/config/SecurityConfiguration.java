@@ -49,9 +49,7 @@ public class SecurityConfiguration {
                                                 // 🔓 WebSocket
                                                 .requestMatchers("/ws/**").permitAll()
 
-                                                // 🔓 Public APIs
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
-
+                                                // 🔓 Auth
                                                 .requestMatchers(
                                                                 "/api/v1/auth/**",
                                                                 "/api/auth/**",
@@ -59,12 +57,13 @@ public class SecurityConfiguration {
                                                                 "/auth/google/**")
                                                 .permitAll()
 
+                                                // 🔓 Public APIs
                                                 .requestMatchers(
                                                                 "/api/v1/public/**",
                                                                 "/uploads/**")
                                                 .permitAll()
 
-                                                // Swagger
+                                                // 🔓 Swagger
                                                 .requestMatchers(
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html",
@@ -74,12 +73,15 @@ public class SecurityConfiguration {
                                                                 "/webjars/**")
                                                 .permitAll()
 
-                                                // ================= PUBLIC GET APIs =================
+                                                // 🔓 PUBLIC GET APIs
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards")
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
+
+                                                // 🔥 SUBJECTS (FIXED HERE)
+                                                .requestMatchers("/api/subjects/**").permitAll()
 
                                                 // ================= ADMIN =================
                                                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
@@ -90,8 +92,6 @@ public class SecurityConfiguration {
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("TUTOR")
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/classes/open")
                                                 .hasRole("TUTOR")
-
-                                                // 🔥 OPEN CLASS MODULE (FIXED PATH)
                                                 .requestMatchers("/api/v1/open-classes/**").hasRole("TUTOR")
 
                                                 // ================= BOOKING =================

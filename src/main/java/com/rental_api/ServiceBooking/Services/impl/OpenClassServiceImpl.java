@@ -116,9 +116,7 @@ public class OpenClassServiceImpl implements OpenClassService {
             entity.setStatus(OpenClass.ClassStatus.valueOf(request.getStatus().toUpperCase()));
         }
 
-        if (request.getClassType() != null) {
-            entity.setClassType(OpenClass.ClassType.valueOf(request.getClassType().toUpperCase()));
-        }
+        // ❌ REMOVED classType mapping (because field deleted)
 
         if (request.getLearningModes() != null) {
             entity.setLearningModes(
@@ -150,7 +148,9 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .title(e.getTitle())
                 .description(e.getDescription())
                 .status(e.getStatus() != null ? e.getStatus().name() : null)
-                .classType(e.getClassType() != null ? e.getClassType().name() : null)
+
+                // ❌ REMOVED classType from response
+
                 .classImage(e.getClassImage())
                 .tutorId(e.getTutor().getId())
                 .tutorName(e.getTutor().getUser().getFullname())

@@ -18,7 +18,6 @@ public class OpenClassRequest {
     private List<Long> subjectIds;
 
     // ================= CLASS TYPE =================
-    private String classType; // ONLINE / STUDENT_HOME / TUTOR_CLASS
 
     // ================= STATUS =================
     private String status; // OPEN / CLOSED / FULL

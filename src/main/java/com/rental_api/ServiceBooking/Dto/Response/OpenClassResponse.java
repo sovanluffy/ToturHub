@@ -18,7 +18,6 @@ public class OpenClassResponse {
     private String description;
 
     private String status;
-    private String classType;
 
     private Long tutorId;
     private String tutorName;
