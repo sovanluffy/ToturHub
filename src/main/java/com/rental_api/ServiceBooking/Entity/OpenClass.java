@@ -2,16 +2,18 @@ package com.rental_api.ServiceBooking.Entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
 @Table(name = "open_classes")
-@Getter 
-@Setter 
-@Builder 
-@NoArgsConstructor 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class OpenClass {
 
@@ -19,71 +21,81 @@ public class OpenClass {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    // ================= BASIC =================
     private String title;
-    
+
     @Column(length = 2000)
     private String description;
 
+    // ================= IMAGE =================
+    private String classImage;
+
+    // ================= TUTOR =================
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id", nullable = false)
     private Tutor tutor;
 
-    // --- 📚 SUBJECTS (Many-to-Many) ---
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "class_subjects",
-        joinColumns = @JoinColumn(name = "class_id"),
-        inverseJoinColumns = @JoinColumn(name = "subject_id")
-    )
+    // ================= SUBJECTS =================
+    @ManyToMany
+    @JoinTable(name = "class_subjects", joinColumns = @JoinColumn(name = "class_id"), inverseJoinColumns = @JoinColumn(name = "subject_id"))
     private List<Subject> subjects = new ArrayList<>();
 
+    // ================= STATUS =================
     @Enumerated(EnumType.STRING)
-    @Builder.Default
     private ClassStatus status = ClassStatus.OPEN;
 
-    // --- 💰 PRICING (Map: Student Count -> Price) ---
-    @Column(name = "base_price")
+    // ================= CLASS TYPE =================
+    @Enumerated(EnumType.STRING)
+    private ClassType classType;
+
+    // ================= PRICE =================
     private BigDecimal basePrice;
+    private Integer maxStudents;
 
-    @Column(name = "max_students")
-    private Integer maxStudents; // Set to 20 by default or via request
-
-    // --- 📍 LOCATION (Relationship to Location Entity) ---
+    // ================= LOCATION =================
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "location_id", nullable = false)
-    private Location location; 
+    @JoinColumn(name = "location_id")
+    private Location location;
 
-    // Specific details like "Street 289, House #12"
-    @Column(name = "specific_address")
     private String specificAddress;
 
-    @ElementCollection(targetClass = LearningMode.class)
-    @CollectionTable(name = "class_learning_modes", joinColumns = @JoinColumn(name = "class_id"))
+    // ================= LEARNING MODE =================
+    @ElementCollection
     @Enumerated(EnumType.STRING)
-    @Builder.Default // <--- ADD THIS
-    private Set<LearningMode> learningModes = new HashSet<>(); // Initialize here
+    private Set<LearningMode> learningModes = new HashSet<>();
 
-    // Inside OpenClass.java
-    @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ScheduleConfig> schedules = new ArrayList<>();
+    // ================= SCHEDULE =================
+    @ElementCollection
+    @CollectionTable(name = "class_day_time_slots", joinColumns = @JoinColumn(name = "class_id"))
+    private List<DayTimeSlot> dayTimeSlots = new ArrayList<>();
 
-
-    // --- 🕒 METADATA ---
+    // ================= META =================
     private LocalDateTime createdAt;
 
     @PrePersist
-    protected void onCreate() {
+    public void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
 
-    // --- ENUMS ---
-    public enum LearningMode { 
-        STUDENT_HOME, TUTOR_CLASS, ONLINE, OUTSIDE 
+    // ================= ENUMS =================
+
+    public enum ClassType {
+        ONLINE,
+        STUDENT_HOME,
+        TUTOR_CLASS
     }
-    
-    public enum ClassStatus { 
-        
-        OPEN, CLOSED, FULL, ARCHIVED 
+
+    public enum ClassStatus {
+        OPEN,
+        CLOSED,
+        FULL,
+        ARCHIVED
+    }
+
+    public enum LearningMode {
+        ONLINE,
+        STUDENT_HOME,
+        TUTOR_CLASS,
+        OUTSIDE
     }
 }
