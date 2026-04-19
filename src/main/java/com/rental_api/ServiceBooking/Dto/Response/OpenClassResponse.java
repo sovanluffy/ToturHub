@@ -4,7 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
-import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 
 @Data
@@ -43,7 +43,7 @@ public class OpenClassResponse {
     @AllArgsConstructor
     public static class DayTimeSlotResponse {
         private DayOfWeek day;
-        private String startTime;
-        private String endTime;
+        private LocalTime startTime;
+        private LocalTime endTime;
     }
 }

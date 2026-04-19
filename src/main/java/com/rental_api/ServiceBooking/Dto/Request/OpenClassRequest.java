@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 
 @Data
@@ -17,10 +18,7 @@ public class OpenClassRequest {
 
     private List<Long> subjectIds;
 
-    // ================= CLASS TYPE =================
-
-    // ================= STATUS =================
-    private String status; // OPEN / CLOSED / FULL
+    private String status;
 
     private Long locationId;
     private String specificAddress;
@@ -28,10 +26,8 @@ public class OpenClassRequest {
     private BigDecimal basePrice;
     private Integer maxStudents;
 
-    // ================= LEARNING MODE =================
     private List<String> learningModes;
 
-    // ================= SCHEDULE =================
     private List<DayTimeSlotRequest> dayTimeSlots;
 
     @Data
@@ -40,7 +36,9 @@ public class OpenClassRequest {
     @Builder
     public static class DayTimeSlotRequest {
         private DayOfWeek day;
-        private String startTime;
-        private String endTime;
+
+        // ✅ FIXED HERE
+        private LocalTime startTime;
+        private LocalTime endTime;
     }
 }

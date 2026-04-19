@@ -13,7 +13,8 @@ import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "users")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -24,21 +25,19 @@ public class User implements UserDetails {
     private Long id;
 
     private String fullname;
-    private String username;
+
+    @Column(unique = true, nullable = false)
     private String email;
+
     private String password;
     private String phone;
     private String address;
 
-    // ❌ remove location from user if using Location entity
-    // private String location;
-    private Long locationId; // <-- ADD THIS
+    private Long locationId;
 
-    // Avatar URL for Cloudinary
     private String avatarUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     @Builder.Default
     private Status status = Status.ACTIVE;
 
@@ -51,9 +50,8 @@ public class User implements UserDetails {
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
-    // -------------------------------
-    // UserDetails interface methods
-    // -------------------------------
+    // ================= SECURITY =================
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roles.stream()
@@ -61,6 +59,7 @@ public class User implements UserDetails {
                 .collect(Collectors.toSet());
     }
 
+    // 🔥 EMAIL IS NOW LOGIN IDENTIFIER
     @Override
     public String getUsername() {
         return this.email;

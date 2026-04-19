@@ -10,7 +10,6 @@ import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.BookingService;
 
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -23,172 +22,160 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
 
-    private final OpenClassRepository openClassRepository;
-    private final BookingRepository bookingRepository;
-    private final UserRepository userRepository;
-    private final ClassScheduleRepository classScheduleRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+        private final OpenClassRepository openClassRepository;
+        private final BookingRepository bookingRepository;
+        private final UserRepository userRepository;
+        private final ClassScheduleRepository classScheduleRepository;
+        private final SimpMessagingTemplate messagingTemplate;
 
-    // ===================== BOOK CLASS =====================
-    @Override
-    @Transactional
-    public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
+        // ================= BOOK CLASS =================
+        @Override
+        @Transactional
+        public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
 
-        // 1. Get current user (student)
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+                String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User student = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
+                User student = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // 2. Get class
-        OpenClass openClass = openClassRepository.findById(openClassId)
-                .orElseThrow(() -> new ResourceNotFoundException("Open class not found with ID: " + openClassId));
+                OpenClass openClass = openClassRepository.findById(openClassId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
 
-        // 3. Get selected slot
-        ClassSchedule slot = classScheduleRepository.findById(request.getScheduleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Time slot not found"));
+                ClassSchedule slot = classScheduleRepository.findById(request.getScheduleId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
-        if (slot.isBooked()) {
-            throw new RuntimeException("This slot is already booked!");
+                // ================= CHECK SLOT =================
+                if (slot.isBooked()) {
+                        throw new RuntimeException("This schedule is already booked!");
+                }
+
+                // ================= CREATE BOOKING =================
+                BookingClass booking = BookingClass.builder()
+                                .user(student)
+                                .tutor(openClass.getTutor())
+                                .openClass(openClass)
+                                .schedule(slot)
+                                .telegram(request.getTelegram())
+                                .note(request.getNote())
+                                .status(BookingStatus.PENDING)
+                                .build();
+
+                BookingClass saved = bookingRepository.save(booking);
+
+                // ================= MARK SLOT BOOKED =================
+                slot.setBooked(true);
+                classScheduleRepository.save(slot);
+
+                // ================= NOTIFY TUTOR =================
+                String tutorEmail = openClass.getTutor().getUser().getEmail();
+
+                messagingTemplate.convertAndSendToUser(
+                                tutorEmail,
+                                "/queue/notifications",
+                                new NotificationMessage(
+                                                "BOOKING_REQUEST",
+                                                student.getFullname() + " booked your class: " + openClass.getTitle(),
+                                                saved.getId(),
+                                                openClass.getId()));
+
+                return mapToResponse(saved);
         }
 
-        // 4. Create booking
-        BookingClass booking = new BookingClass();
-        booking.setUser(student);
-        booking.setTutor(openClass.getTutor());
-        booking.setOpenClass(openClass);
-        booking.setScheduleConfig(slot.getConfig());
-        booking.setTelegram(request.getTelegram());
-        booking.setNote(request.getNote());
-        booking.setStatus(BookingStatus.PENDING);
+        // ================= CONFIRM BOOKING =================
+        @Override
+        @Transactional
+        public BookingResponse confirmBooking(Long bookingId) {
 
-        BookingClass savedBooking = bookingRepository.save(booking);
+                BookingClass booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
-        // 5. Mark slot as booked
-        slot.setBooked(true);
-        classScheduleRepository.save(slot);
+                booking.setStatus(BookingStatus.CONFIRMED);
 
-        // 6. 🔥 SEND NOTIFICATION TO TUTOR
-        NotificationMessage notification = new NotificationMessage(
-                "BOOKING_REQUEST",
-                student.getFullname() + " booked your class: " + openClass.getTitle(),
-                savedBooking.getId(),
-                openClass.getId());
+                BookingClass updated = bookingRepository.save(booking);
 
-        messagingTemplate.convertAndSendToUser(
-                openClass.getTutor().getUser().getEmail(),
-                "/queue/notifications",
-                notification);
+                messagingTemplate.convertAndSendToUser(
+                                booking.getUser().getEmail(),
+                                "/queue/notifications",
+                                new NotificationMessage(
+                                                "BOOKING_CONFIRMED",
+                                                "Booking confirmed: " + booking.getOpenClass().getTitle(),
+                                                booking.getId(),
+                                                booking.getOpenClass().getId()));
 
-        return mapToResponse(savedBooking, savedBooking.getScheduleConfig());
-    }
-
-    // ===================== CONFIRM BOOKING =====================
-    @Override
-    @Transactional
-    public BookingResponse confirmBooking(Long bookingId) {
-
-        BookingClass booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-
-        booking.setStatus(BookingStatus.CONFIRMED);
-        BookingClass updated = bookingRepository.save(booking);
-
-        // 🔥 SEND NOTIFICATION TO STUDENT
-        NotificationMessage notification = new NotificationMessage(
-                "BOOKING_CONFIRMED",
-                "Your booking for '" + booking.getOpenClass().getTitle() + "' is CONFIRMED",
-                booking.getId(),
-                booking.getOpenClass().getId());
-
-        messagingTemplate.convertAndSendToUser(
-                booking.getUser().getEmail(),
-                "/queue/notifications",
-                notification);
-
-        return mapToResponse(updated, updated.getScheduleConfig());
-    }
-
-    // ===================== REJECT BOOKING =====================
-    @Override
-    @Transactional
-    public BookingResponse rejectBooking(Long bookingId) {
-
-        BookingClass booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-
-        booking.setStatus(BookingStatus.REJECTED);
-
-        // Make slot available again
-        if (booking.getScheduleConfig() != null &&
-                booking.getScheduleConfig().getIndividualSlots() != null) {
-
-            booking.getScheduleConfig()
-                    .getIndividualSlots()
-                    .forEach(slot -> slot.setBooked(false));
+                return mapToResponse(updated);
         }
 
-        BookingClass updated = bookingRepository.save(booking);
+        // ================= REJECT BOOKING =================
+        @Override
+        @Transactional
+        public BookingResponse rejectBooking(Long bookingId) {
 
-        // 🔥 SEND NOTIFICATION TO STUDENT
-        NotificationMessage notification = new NotificationMessage(
-                "BOOKING_REJECTED",
-                "Your booking for '" + booking.getOpenClass().getTitle() + "' was rejected",
-                booking.getId(),
-                booking.getOpenClass().getId());
+                BookingClass booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
-        messagingTemplate.convertAndSendToUser(
-                booking.getUser().getEmail(),
-                "/queue/notifications",
-                notification);
+                booking.setStatus(BookingStatus.REJECTED);
 
-        return mapToResponse(updated, updated.getScheduleConfig());
-    }
+                // ================= FREE SLOT =================
+                ClassSchedule slot = booking.getSchedule();
+                if (slot != null) {
+                        slot.setBooked(false);
+                        classScheduleRepository.save(slot);
+                }
 
-    // ===================== GET BY CLASS =====================
-    @Override
-    @Transactional(readOnly = true)
-    public List<BookingResponse> getBookingsByClassId(Long openClassId) {
-        return bookingRepository.findByOpenClassId(openClassId)
-                .stream()
-                .map(b -> mapToResponse(b, b.getScheduleConfig()))
-                .collect(Collectors.toList());
-    }
+                BookingClass updated = bookingRepository.save(booking);
 
-    // ===================== GET BY USER =====================
-    @Override
-    @Transactional(readOnly = true)
-    public List<BookingResponse> getBookingsByUserId(Long userId) {
-        return bookingRepository.findByUserId(userId)
-                .stream()
-                .map(b -> mapToResponse(b, b.getScheduleConfig()))
-                .collect(Collectors.toList());
-    }
+                messagingTemplate.convertAndSendToUser(
+                                booking.getUser().getEmail(),
+                                "/queue/notifications",
+                                new NotificationMessage(
+                                                "BOOKING_REJECTED",
+                                                "Booking rejected: " + booking.getOpenClass().getTitle(),
+                                                booking.getId(),
+                                                booking.getOpenClass().getId()));
 
-    // ===================== GET BY TUTOR =====================
-    @Override
-    @Transactional(readOnly = true)
-    public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
-        return bookingRepository.findByTutorId(tutorId)
-                .stream()
-                .map(b -> mapToResponse(b, b.getScheduleConfig()))
-                .collect(Collectors.toList());
-    }
+                return mapToResponse(updated);
+        }
 
-    // ===================== MAPPER =====================
-    private BookingResponse mapToResponse(BookingClass b, ScheduleConfig s) {
+        // ================= GET BOOKINGS =================
+        @Override
+        public List<BookingResponse> getBookingsByUserId(Long userId) {
+                return bookingRepository.findByUserId(userId)
+                                .stream()
+                                .map(this::mapToResponse)
+                                .collect(Collectors.toList());
+        }
 
-        return new BookingResponse(
-                b.getId(),
-                s != null ? s.getId() : null,
-                s != null ? s.getScheduleType() : null,
-                s != null ? s.getStartDate() : null,
-                s != null ? s.getEndDate() : null,
-                s != null ? s.getStartTime() : null,
-                s != null ? s.getEndTime() : null,
-                b.getStatus(),
-                b.getNote(),
-                b.getTelegram(),
-                b.getCreatedAt());
-    }
+        @Override
+        public List<BookingResponse> getBookingsByClassId(Long classId) {
+                return bookingRepository.findByOpenClassId(classId)
+                                .stream()
+                                .map(this::mapToResponse)
+                                .collect(Collectors.toList());
+        }
+
+        @Override
+        public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
+                return bookingRepository.findByTutorId(tutorId)
+                                .stream()
+                                .map(this::mapToResponse)
+                                .collect(Collectors.toList());
+        }
+
+        // ================= SAFE MAPPER =================
+        private BookingResponse mapToResponse(BookingClass b) {
+
+                ClassSchedule s = b.getSchedule();
+
+                return BookingResponse.builder()
+                                .bookingId(b.getId())
+                                .scheduleId(s != null ? s.getId() : null)
+                                .scheduleType(s != null ? s.getScheduleType() : null)
+                                .startDate(s != null ? s.getStartDate() : null)
+                                .endDate(s != null ? s.getEndDate() : null)
+                                .status(b.getStatus())
+                                .note(b.getNote())
+                                .telegram(b.getTelegram())
+                                .createdAt(b.getCreatedAt())
+                                .build();
+        }
 }

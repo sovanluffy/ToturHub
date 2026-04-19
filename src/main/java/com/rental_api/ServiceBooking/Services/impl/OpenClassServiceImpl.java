@@ -6,13 +6,16 @@ import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 import com.rental_api.ServiceBooking.Services.OpenClassService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -64,6 +67,12 @@ public class OpenClassServiceImpl implements OpenClassService {
         return save(entity, request, tutor);
     }
 
+    // ================= DELETE =================
+    @Override
+    public void deleteClass(Long id) {
+        openClassRepository.deleteById(id);
+    }
+
     // ================= GET BY ID =================
     @Override
     public OpenClassResponse getClassDetails(Long id) {
@@ -72,28 +81,22 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .orElseThrow(() -> new RuntimeException("Class not found"));
     }
 
+    // ================= GET ALL =================
+    @Override
+    public List<OpenClassResponse> getAllPublicCards() {
+        return openClassRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     // ================= GET BY TUTOR =================
     @Override
     public List<OpenClassResponse> findByTutorId(Long tutorId) {
         return openClassRepository.findByTutorId(tutorId)
                 .stream()
                 .map(this::mapToResponse)
-                .toList();
-    }
-
-    // ================= DELETE =================
-    @Override
-    public void deleteClass(Long id) {
-        openClassRepository.deleteById(id);
-    }
-
-    // ================= PUBLIC CARDS =================
-    @Override
-    public List<OpenClassResponse> getAllPublicCards() {
-        return openClassRepository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     // ================= CORE SAVE =================
@@ -116,8 +119,7 @@ public class OpenClassServiceImpl implements OpenClassService {
             entity.setStatus(OpenClass.ClassStatus.valueOf(request.getStatus().toUpperCase()));
         }
 
-        // ❌ REMOVED classType mapping (because field deleted)
-
+        // ================= LEARNING MODES =================
         if (request.getLearningModes() != null) {
             entity.setLearningModes(
                     request.getLearningModes().stream()
@@ -125,15 +127,21 @@ public class OpenClassServiceImpl implements OpenClassService {
                             .collect(Collectors.toSet()));
         }
 
+        // ================= DAY TIME SLOTS (FIXED EMBEDDABLE STRING TIME)
+        // =================
         entity.getDayTimeSlots().clear();
 
         if (request.getDayTimeSlots() != null) {
-            request.getDayTimeSlots().forEach(slot -> entity.getDayTimeSlots().add(
-                    DayTimeSlot.builder()
-                            .day(slot.getDay())
-                            .startTime(slot.getStartTime())
-                            .endTime(slot.getEndTime())
-                            .build()));
+            for (var slot : request.getDayTimeSlots()) {
+
+                DayTimeSlot dayTimeSlot = DayTimeSlot.builder()
+                        .day(slot.getDay())
+                        .startTime(slot.getStartTime()) // STRING
+                        .endTime(slot.getEndTime()) // STRING
+                        .build();
+
+                entity.getDayTimeSlots().add(dayTimeSlot);
+            }
         }
 
         OpenClass saved = openClassRepository.save(entity);
@@ -149,27 +157,38 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .description(e.getDescription())
                 .status(e.getStatus() != null ? e.getStatus().name() : null)
 
-                // ❌ REMOVED classType from response
-
-                .classImage(e.getClassImage())
                 .tutorId(e.getTutor().getId())
                 .tutorName(e.getTutor().getUser().getFullname())
                 .tutorRating(e.getTutor().getAverageRating())
+
                 .location(e.getLocation().getDistrict() + ", " + e.getLocation().getCity())
                 .specificAddress(e.getSpecificAddress())
-                .subjects(e.getSubjects().stream().map(Subject::getName).toList())
-                .learningModes(e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()))
+
+                .subjects(
+                        e.getSubjects() != null
+                                ? e.getSubjects().stream().map(Subject::getName).collect(Collectors.toList())
+                                : List.of())
+
+                .learningModes(
+                        e.getLearningModes() != null
+                                ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet())
+                                : Set.of())
+
                 .basePrice(e.getBasePrice())
                 .maxStudents(e.getMaxStudents())
                 .currentStudents(0)
+
                 .schedules(
-                        e.getDayTimeSlots().stream()
-                                .map(s -> OpenClassResponse.DayTimeSlotResponse.builder()
-                                        .day(s.getDay())
-                                        .startTime(s.getStartTime())
-                                        .endTime(s.getEndTime())
-                                        .build())
-                                .toList())
+                        e.getDayTimeSlots() != null
+                                ? e.getDayTimeSlots().stream()
+                                        .map(s -> OpenClassResponse.DayTimeSlotResponse.builder()
+                                                .day(s.getDay())
+                                                .startTime(s.getStartTime())
+                                                .endTime(s.getEndTime())
+                                                .build())
+                                        .collect(Collectors.toList())
+                                : List.of())
+
                 .build();
     }
 

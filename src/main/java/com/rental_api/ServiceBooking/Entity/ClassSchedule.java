@@ -2,38 +2,29 @@ package com.rental_api.ServiceBooking.Entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDateTime;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Entity
+@Table(name = "class_schedules")
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class ClassSchedule {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    private String scheduleType;
 
-    // ✅ Match the existing database column name exactly
-    @Builder.Default
-    @Column(name = "is_booked", nullable = false)
-    private boolean booked = false;
+    private LocalDate startDate;
+    private LocalDate endDate;
 
-    @Enumerated(EnumType.STRING)
-    private ScheduleType type;
+    private LocalTime startTime;
+    private LocalTime endTime;
 
-    @ManyToOne
-    @JoinColumn(name = "open_class_id")
-    private OpenClass openClass;
-
-    @ManyToOne
-    @JoinColumn(name = "schedule_config_id")
-    private ScheduleConfig config;
-
-    public enum ScheduleType {
-        DAILY, WEEKEND, ONCE
-    }
+    private boolean booked;
 }
