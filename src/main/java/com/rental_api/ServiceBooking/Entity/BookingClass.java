@@ -36,7 +36,7 @@ public class BookingClass {
     @JoinColumn(name = "student_id", nullable = false) 
     private User user;
 
-    // The Tutor
+    // The Tutor1
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id", nullable = false)
     private Tutor tutor;
