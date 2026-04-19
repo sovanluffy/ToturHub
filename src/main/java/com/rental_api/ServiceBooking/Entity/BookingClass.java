@@ -31,7 +31,7 @@ public class BookingClass {
     @JoinColumn(name = "schedule_config_id", nullable = false)
     private ScheduleConfig scheduleConfig;
 
-    // The Student (Mapped to User entity)
+    // The Student (Mapped to User entity)khmer24
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
     private User user;
