@@ -49,7 +49,7 @@ public class SecurityConfiguration {
                                                 // 🔓 WebSocket
                                                 .requestMatchers("/ws/**").permitAll()
 
-                                                // 🔓 Auth
+                                                // 🔓 AUTH
                                                 .requestMatchers(
                                                                 "/api/v1/auth/**",
                                                                 "/api/auth/**",
@@ -57,13 +57,14 @@ public class SecurityConfiguration {
                                                                 "/auth/google/**")
                                                 .permitAll()
 
-                                                // 🔓 Public APIs
+                                                // 🔓 PUBLIC APIs
                                                 .requestMatchers(
                                                                 "/api/v1/public/**",
-                                                                "/uploads/**")
+                                                                "/uploads/**",
+                                                                "/api/v1/locations/**")
                                                 .permitAll()
 
-                                                // 🔓 Swagger
+                                                // 🔓 SWAGGER
                                                 .requestMatchers(
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html",
@@ -80,7 +81,7 @@ public class SecurityConfiguration {
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
 
-                                                // 🔥 SUBJECTS (FIXED HERE)
+                                                // 🔥 SUBJECTS (IMPORTANT FIX)
                                                 .requestMatchers("/api/subjects/**").permitAll()
 
                                                 // ================= ADMIN =================
@@ -122,17 +123,17 @@ public class SecurityConfiguration {
                                                 // fallback
                                                 .anyRequest().authenticated())
 
-                                // ================= SESSION =================
+                                // ================= SESSION (JWT STATELESS) =================
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                                // ================= PROVIDER =================
+                                // ================= AUTH PROVIDER =================
                                 .authenticationProvider(authenticationProvider)
 
                                 // ================= JWT FILTER =================
                                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-                                // ================= EXCEPTION =================
+                                // ================= EXCEPTION HANDLING =================
                                 .exceptionHandling(ex -> ex
                                                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                                                 .accessDeniedHandler(jwtAccessDeniedHandler));
@@ -140,7 +141,7 @@ public class SecurityConfiguration {
                 return http.build();
         }
 
-        // ================= CORS =================
+        // ================= CORS CONFIG =================
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
 
