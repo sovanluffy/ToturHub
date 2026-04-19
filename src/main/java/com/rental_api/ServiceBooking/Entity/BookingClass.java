@@ -13,15 +13,15 @@ import lombok.NoArgsConstructor;
 @Table(name = "bookings")
 @Data
 @Builder
-@NoArgsConstructor 
+@NoArgsConstructor
 @AllArgsConstructor
 public class BookingClass {
 
-    @Id 
+    @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // The class being booked
+    // The class being bookedkhmer
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id", nullable = false)
     private OpenClass openClass;
@@ -29,11 +29,11 @@ public class BookingClass {
     // The specific time/date configuration chosen
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "schedule_config_id", nullable = false)
-    private ScheduleConfig scheduleConfig; 
+    private ScheduleConfig scheduleConfig;
 
     // The Student (Mapped to User entity)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_id", nullable = false) 
+    @JoinColumn(name = "student_id", nullable = false)
     private User user;
 
     // The Tutor12
@@ -46,10 +46,10 @@ public class BookingClass {
 
     @Column(length = 255, nullable = false)
     private String telegram;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private BookingStatus status; 
+    private BookingStatus status;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
