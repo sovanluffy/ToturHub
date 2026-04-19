@@ -26,7 +26,7 @@ public class BookingClass {
     @JoinColumn(name = "class_id", nullable = false)
     private OpenClass openClass;
 
-    // The specific time/date configuration chosen
+    // The specific time/date configuration chosen12
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "schedule_config_id", nullable = false)
     private ScheduleConfig scheduleConfig;
