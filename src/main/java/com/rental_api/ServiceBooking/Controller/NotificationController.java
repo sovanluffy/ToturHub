@@ -17,41 +17,86 @@ public class NotificationController {
 
     private final NotificationRepository notificationRepository;
 
-    // GET all notifications for the logged-in Tutor/User
+    // ================= GET MY NOTIFICATIONS =================
     @GetMapping("/my-notifications")
     @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
     public ResponseEntity<List<Notification>> getMyNotifications() {
+
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.ok(notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email));
+
+        List<Notification> notifications =
+                notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email);
+
+        return ResponseEntity.ok(notifications);
     }
 
-    // GET unread count
+    // ================= UNREAD COUNT =================
     @GetMapping("/unread-count")
     @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
     public ResponseEntity<Long> getUnreadCount() {
+
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.ok(notificationRepository.countByRecipientEmailAndIsReadFalse(email));
+
+        Long count = notificationRepository
+                .countByRecipientEmailAndIsReadFalse(email);
+
+        return ResponseEntity.ok(count);
     }
 
-    // Mark a specific notification as read
+    // ================= MARK ONE AS READ =================
     @PatchMapping("/read/{id}")
     @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
     public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
-        notificationRepository.findById(id).ifPresent(n -> {
-            n.setRead(true);
-            notificationRepository.save(n);
-        });
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        // 🔒 Security check (user can only update their own notification)
+        if (!notification.getRecipientEmail().equals(email)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        notification.setRead(true);
+        notificationRepository.save(notification);
+
         return ResponseEntity.ok().build();
     }
 
-    // Mark ALL as read
+    // ================= MARK ALL AS READ =================
     @PatchMapping("/read-all")
     @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
     public ResponseEntity<Void> markAllAsRead() {
+
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        List<Notification> unread = notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email);
-        unread.forEach(n -> n.setRead(true));
-        notificationRepository.saveAll(unread);
+
+        List<Notification> notifications =
+                notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email);
+
+        notifications.forEach(n -> n.setRead(true));
+
+        notificationRepository.saveAll(notifications);
+
+        return ResponseEntity.ok().build();
+    }
+
+    // ================= DELETE NOTIFICATION =================
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
+    public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        if (!notification.getRecipientEmail().equals(email)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        notificationRepository.delete(notification);
+
         return ResponseEntity.ok().build();
     }
 }
