@@ -26,13 +26,12 @@ public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final DayTimeSlotRepository dayTimeSlotRepository;
-    private final NotificationRepository notificationRepository; // Added for persistence
+    private final NotificationRepository notificationRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // ================= NOTIFICATION LOGIC =================
-    
+    // ================= NOTIFICATION =================
     private void sendNotification(String email, String type, String content, Long bookingId, Long classId) {
-        // 1. Save to Database (for offline retrieval)
+
         Notification notification = Notification.builder()
                 .recipientEmail(email)
                 .type(type)
@@ -41,9 +40,9 @@ public class BookingServiceImpl implements BookingService {
                 .classId(classId)
                 .isRead(false)
                 .build();
+
         notificationRepository.save(notification);
 
-        // 2. Send Real-time WebSocket (for online users)
         messagingTemplate.convertAndSendToUser(
                 email,
                 "/queue/notifications",
@@ -52,7 +51,6 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // ================= BOOK CLASS =================
-    
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
@@ -78,7 +76,7 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalStateException("You already booked this slot!");
         }
 
-        // Capacity Check
+        // Capacity check
         int booked = slot.getBookedCount() == null ? 0 : slot.getBookedCount();
         int max = slot.getMaxStudents() == null ? 10 : slot.getMaxStudents();
 
@@ -100,7 +98,7 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
-        // Notify Tutor
+        // Notify tutor
         sendNotification(
                 openClass.getTutor().getUser().getEmail(),
                 "BOOKING_REQUEST",
@@ -112,8 +110,7 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(saved);
     }
 
-    // ================= CONFIRM BOOKING =================
-    
+    // ================= CONFIRM =================
     @Override
     @Transactional
     public BookingResponse confirmBooking(Long bookingId) {
@@ -122,9 +119,9 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
         booking.setStatus(BookingStatus.CONFIRMED);
+
         BookingClass updated = bookingRepository.save(booking);
 
-        // Notify Student
         sendNotification(
                 booking.getUser().getEmail(),
                 "BOOKING_CONFIRMED",
@@ -136,8 +133,7 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(updated);
     }
 
-    // ================= REJECT BOOKING =================
-    
+    // ================= REJECT =================
     @Override
     @Transactional
     public BookingResponse rejectBooking(Long bookingId) {
@@ -147,7 +143,6 @@ public class BookingServiceImpl implements BookingService {
 
         booking.setStatus(BookingStatus.REJECTED);
 
-        // Reduce booked count
         DayTimeSlot slot = booking.getSchedule();
         if (slot != null) {
             int booked = slot.getBookedCount() == null ? 0 : slot.getBookedCount();
@@ -156,7 +151,6 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass updated = bookingRepository.save(booking);
 
-        // Notify Student
         sendNotification(
                 booking.getUser().getEmail(),
                 "BOOKING_REJECTED",
@@ -168,8 +162,7 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(updated);
     }
 
-    // ================= DATA RETRIEVAL =================
-
+    // ================= GET DATA =================
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
         return bookingRepository.findByUserId(userId)
@@ -194,20 +187,35 @@ public class BookingServiceImpl implements BookingService {
                 .collect(Collectors.toList());
     }
 
-    // ================= MAPPER =================
-    
+    // ================= FINAL FIXED MAPPER =================
     private BookingResponse mapToResponse(BookingClass b) {
+
         DayTimeSlot s = b.getSchedule();
+        OpenClass oc = b.getOpenClass();
+        User u = b.getUser();
+
         return BookingResponse.builder()
                 .bookingId(b.getId())
+
+                // ✅ USER
+                .userId(u != null ? u.getId() : null)
+
+                // ✅ CLASS
+                .classId(oc != null ? oc.getId() : null)
+                .classTitle(oc != null ? oc.getTitle() : null)
+
+                // ✅ SCHEDULE
                 .scheduleId(s != null ? s.getId() : null)
                 .day(s != null ? s.getDay() : null)
                 .startTime(s != null ? s.getStartTime() : null)
                 .endTime(s != null ? s.getEndTime() : null)
+
+                // ✅ BOOKING
                 .status(b.getStatus())
                 .note(b.getNote())
                 .telegram(b.getTelegram())
                 .createdAt(b.getCreatedAt())
+
                 .build();
     }
 }

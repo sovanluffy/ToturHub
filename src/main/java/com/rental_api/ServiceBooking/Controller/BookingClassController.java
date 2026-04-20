@@ -26,9 +26,9 @@ public class BookingClassController {
             @PathVariable Long openClassId,
             @RequestBody BookingClassRequest request) {
 
-        return ResponseEntity.ok(
-                bookingService.bookClass(openClassId, request)
-        );
+        BookingResponse response = bookingService.bookClass(openClassId, request);
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/user/{userId}")
@@ -36,9 +36,9 @@ public class BookingClassController {
     public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
             @PathVariable Long userId) {
 
-        return ResponseEntity.ok(
-                bookingService.getBookingsByUserId(userId)
-        );
+        List<BookingResponse> responses = bookingService.getBookingsByUserId(userId);
+
+        return ResponseEntity.ok(responses);
     }
 
     // ================= TUTOR =================
@@ -48,9 +48,9 @@ public class BookingClassController {
     public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
             @PathVariable Long openClassId) {
 
-        return ResponseEntity.ok(
-                bookingService.getBookingsByClassId(openClassId)
-        );
+        List<BookingResponse> responses = bookingService.getBookingsByClassId(openClassId);
+
+        return ResponseEntity.ok(responses);
     }
 
     @GetMapping("/tutor/{tutorId}")
@@ -58,9 +58,9 @@ public class BookingClassController {
     public ResponseEntity<List<BookingResponse>> getBookingsByTutorId(
             @PathVariable Long tutorId) {
 
-        return ResponseEntity.ok(
-                bookingService.getBookingsByTutorId(tutorId)
-        );
+        List<BookingResponse> responses = bookingService.getBookingsByTutorId(tutorId);
+
+        return ResponseEntity.ok(responses);
     }
 
     // ================= ACTIONS =================
@@ -70,9 +70,9 @@ public class BookingClassController {
     public ResponseEntity<BookingResponse> confirmBooking(
             @PathVariable Long bookingId) {
 
-        return ResponseEntity.ok(
-                bookingService.confirmBooking(bookingId)
-        );
+        BookingResponse response = bookingService.confirmBooking(bookingId);
+
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/reject/{bookingId}")
@@ -80,8 +80,8 @@ public class BookingClassController {
     public ResponseEntity<BookingResponse> rejectBooking(
             @PathVariable Long bookingId) {
 
-        return ResponseEntity.ok(
-                bookingService.rejectBooking(bookingId)
-        );
+        BookingResponse response = bookingService.rejectBooking(bookingId);
+
+        return ResponseEntity.ok(response);
     }
 }

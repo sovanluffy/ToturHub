@@ -4,8 +4,8 @@ import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 import lombok.*;
 
 import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Data
 @Builder
@@ -15,17 +15,20 @@ public class BookingResponse {
 
     private Long bookingId;
 
-    // class info
+    // ✅ USER
+    private Long userId;
+
+    // ✅ CLASS
     private Long classId;
     private String classTitle;
 
-    // schedule info (DayTimeSlot)
+    // ✅ SCHEDULE
     private Long scheduleId;
     private DayOfWeek day;
     private LocalTime startTime;
     private LocalTime endTime;
 
-    // booking info
+    // ✅ BOOKING INFO
     private BookingStatus status;
     private String note;
     private String telegram;
