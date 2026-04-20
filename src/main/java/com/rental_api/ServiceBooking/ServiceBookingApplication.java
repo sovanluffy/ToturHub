@@ -32,7 +32,7 @@ public class ServiceBookingApplication {
         String contextPath = env.getProperty("server.servlet.context-path", "");
 
         String hostAddress = "localhost";
-
+//reach
         try {
             hostAddress = InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
