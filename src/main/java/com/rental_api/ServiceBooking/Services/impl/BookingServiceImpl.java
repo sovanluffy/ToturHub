@@ -28,7 +28,7 @@ public class BookingServiceImpl implements BookingService {
     private final DayTimeSlotRepository dayTimeSlotRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // ================= NOTIFY HELPER =================
+    // ================= NOTIFICATION =================
     private void notify(String email, NotificationMessage message) {
         messagingTemplate.convertAndSendToUser(
                 email,
@@ -50,11 +50,9 @@ public class BookingServiceImpl implements BookingService {
         OpenClass openClass = openClassRepository.findById(openClassId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
 
-        // 🔥 LOCK SLOT (prevent race condition)
         DayTimeSlot slot = dayTimeSlotRepository.findByIdForUpdate(request.getDayTimeSlotId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
-        // validate slot belongs to class
         if (!slot.getOpenClass().getId().equals(openClassId)) {
             throw new IllegalStateException("Schedule does not belong to this class");
         }
@@ -65,10 +63,16 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalStateException("You already booked this slot!");
         }
 
-        // check already booked
-        if (Boolean.TRUE.equals(slot.getBooked())) {
-            throw new IllegalStateException("This schedule is already booked!");
+        // ================= CAPACITY CHECK =================
+        int booked = slot.getBookedCount() == null ? 0 : slot.getBookedCount();
+        int max = slot.getMaxStudents() == null ? 10 : slot.getMaxStudents();
+
+        if (booked >= max) {
+            throw new IllegalStateException("This schedule is full!");
         }
+
+        // increase booking count
+        slot.setBookedCount(booked + 1);
 
         BookingClass booking = BookingClass.builder()
                 .user(student)
@@ -81,9 +85,6 @@ public class BookingServiceImpl implements BookingService {
                 .build();
 
         BookingClass saved = bookingRepository.save(booking);
-
-        // mark slot booked (no need save explicitly in @Transactional)
-        slot.setBooked(true);
 
         notify(
                 openClass.getTutor().getUser().getEmail(),
@@ -98,7 +99,7 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(saved);
     }
 
-    // ================= CONFIRM =================
+    // ================= CONFIRM BOOKING =================
     @Override
     @Transactional
     public BookingResponse confirmBooking(Long bookingId) {
@@ -123,7 +124,7 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(updated);
     }
 
-    // ================= REJECT =================
+    // ================= REJECT BOOKING =================
     @Override
     @Transactional
     public BookingResponse rejectBooking(Long bookingId) {
@@ -134,8 +135,11 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.REJECTED);
 
         DayTimeSlot slot = booking.getSchedule();
+
+        // 🔥 reduce booked count
         if (slot != null) {
-            slot.setBooked(false);
+            int booked = slot.getBookedCount() == null ? 0 : slot.getBookedCount();
+            slot.setBookedCount(Math.max(0, booked - 1));
         }
 
         BookingClass updated = bookingRepository.save(booking);
@@ -153,25 +157,28 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(updated);
     }
 
-    // ================= GET =================
+    // ================= GET BOOKINGS =================
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
         return bookingRepository.findByUserId(userId)
-                .stream().map(this::mapToResponse)
+                .stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<BookingResponse> getBookingsByClassId(Long classId) {
         return bookingRepository.findByOpenClassId(classId)
-                .stream().map(this::mapToResponse)
+                .stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
         return bookingRepository.findByTutorId(tutorId)
-                .stream().map(this::mapToResponse)
+                .stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 

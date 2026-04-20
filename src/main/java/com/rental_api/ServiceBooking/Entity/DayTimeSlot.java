@@ -25,7 +25,11 @@ public class DayTimeSlot {
     private LocalTime startTime;
     private LocalTime endTime;
 
-    private Boolean booked = false;
+    // 🔥 dynamic capacity set by tutor
+    private Integer maxStudents;
+
+    // 🔥 current bookings
+    private Integer bookedCount = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")

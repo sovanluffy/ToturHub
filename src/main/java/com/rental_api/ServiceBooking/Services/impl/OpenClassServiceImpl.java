@@ -118,30 +118,36 @@ public class OpenClassServiceImpl implements OpenClassService {
             entity.setStatus(OpenClass.ClassStatus.valueOf(request.getStatus().toUpperCase()));
         }
 
-        // ================= SAVE CLASS FIRST =================
+        // ================= SAVE CLASS =================
         OpenClass savedClass = openClassRepository.save(entity);
 
-        // ================= FIXED SLOT HANDLING =================
+        // ================= SLOT HANDLING =================
         List<DayTimeSlot> slots = new ArrayList<>();
 
         if (request.getDayTimeSlots() != null) {
-            for (var slot : request.getDayTimeSlots()) {
+
+            for (OpenClassRequest.DayTimeSlotRequest slot : request.getDayTimeSlots()) {
 
                 DayTimeSlot dayTimeSlot = DayTimeSlot.builder()
                         .day(slot.getDay())
                         .startTime(slot.getStartTime())
                         .endTime(slot.getEndTime())
-                        .openClass(savedClass) // 🔥 CRITICAL FIX
-                        .booked(false)
+
+                        // 🔥 tutor-defined capacity per slot
+                        .maxStudents(
+                                slot.getMaxStudents() != null ? slot.getMaxStudents() : 10
+                        )
+
+                        // 🔥 initial booking count
+                        .bookedCount(0)
+
+                        .openClass(savedClass)
                         .build();
 
                 slots.add(dayTimeSlot);
             }
 
-            // 🔥 SAVE ALL SLOTS AT ONCE
             dayTimeSlotRepository.saveAll(slots);
-
-            // 🔥 SYNC BOTH SIDES (IMPORTANT FOR RESPONSE)
             savedClass.setDayTimeSlots(slots);
         }
 
@@ -166,13 +172,19 @@ public class OpenClassServiceImpl implements OpenClassService {
 
                 .subjects(
                         e.getSubjects() != null
-                                ? e.getSubjects().stream().map(Subject::getName).toList()
-                                : List.of())
+                                ? e.getSubjects().stream()
+                                        .map(Subject::getName)
+                                        .collect(Collectors.toList())
+                                : List.of()
+                )
 
                 .learningModes(
                         e.getLearningModes() != null
-                                ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet())
-                                : Set.of())
+                                ? e.getLearningModes().stream()
+                                        .map(Enum::name)
+                                        .collect(Collectors.toSet())
+                                : Set.of()
+                )
 
                 .basePrice(e.getBasePrice())
                 .maxStudents(e.getMaxStudents())
@@ -181,15 +193,23 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .schedules(
                         e.getDayTimeSlots() != null
                                 ? e.getDayTimeSlots().stream()
-                                        .map(s -> OpenClassResponse.DayTimeSlotResponse.builder()
-                                                .id(s.getId())
-                                                .day(s.getDay())
-                                                .startTime(s.getStartTime())
-                                                .endTime(s.getEndTime())
-                                                .build())
-                                        .toList()
-                                : List.of())
+                                        .map(this::mapSlot)
+                                        .collect(Collectors.toList())
+                                : List.of()
+                )
 
+                .build();
+    }
+
+    // ================= SLOT MAPPER =================
+    private OpenClassResponse.DayTimeSlotResponse mapSlot(DayTimeSlot s) {
+        return OpenClassResponse.DayTimeSlotResponse.builder()
+                .id(s.getId())
+                .day(s.getDay())
+                .startTime(s.getStartTime())
+                .endTime(s.getEndTime())
+                .maxStudents(s.getMaxStudents())
+                .bookedCount(s.getBookedCount())
                 .build();
     }
 

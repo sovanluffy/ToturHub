@@ -5,7 +5,8 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder
@@ -44,10 +45,14 @@ public class OpenClassResponse {
     @AllArgsConstructor
     public static class DayTimeSlotResponse {
 
-        private Long id; // 🔥 IMPORTANT for booking
+        private Long id;
 
         private DayOfWeek day;
         private LocalTime startTime;
         private LocalTime endTime;
+
+        // 🔥 ADD THESE FOR BOOKING SYSTEM
+        private Integer maxStudents;
+        private Integer bookedCount;
     }
 }

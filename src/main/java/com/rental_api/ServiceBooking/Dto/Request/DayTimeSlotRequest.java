@@ -18,4 +18,5 @@ public class DayTimeSlotRequest {
     // Change startTime and endTime to LocalTime instead of String
     private LocalTime startTime; // "09:00"
     private LocalTime endTime;   // "17:00"
+     private Integer maxStudents; 
 }
