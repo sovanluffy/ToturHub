@@ -24,18 +24,20 @@ public class BookingClass {
     @JoinColumn(name = "user_id")
     private User user;
 
-    // tutor (teacher)
+    // tutor
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id")
     private Tutor tutor;
 
+    // open class
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "open_class_id")
     private OpenClass openClass;
 
+    // ✅ FIXED: use DayTimeSlot instead of ClassSchedule
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "schedule_id")
-    private ClassSchedule schedule;
+    @JoinColumn(name = "day_time_slot_id")
+    private DayTimeSlot schedule;
 
     private String telegram;
     private String note;
@@ -45,7 +47,6 @@ public class BookingClass {
 
     private LocalDateTime createdAt;
 
-    // ================= AUTO SET TIMESTAMP =================
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();

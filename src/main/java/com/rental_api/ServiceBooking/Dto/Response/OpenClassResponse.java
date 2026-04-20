@@ -37,11 +37,15 @@ public class OpenClassResponse {
 
     private List<DayTimeSlotResponse> schedules;
 
+    // ================= INNER CLASS =================
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DayTimeSlotResponse {
+
+        private Long id; // 🔥 IMPORTANT for booking
+
         private DayOfWeek day;
         private LocalTime startTime;
         private LocalTime endTime;

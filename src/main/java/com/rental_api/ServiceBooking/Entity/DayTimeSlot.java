@@ -22,9 +22,10 @@ public class DayTimeSlot {
     @Enumerated(EnumType.STRING)
     private DayOfWeek day;
 
-    // ✅ FIX: use LocalTime (BEST PRACTICE)
     private LocalTime startTime;
     private LocalTime endTime;
+
+    private Boolean booked = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")
