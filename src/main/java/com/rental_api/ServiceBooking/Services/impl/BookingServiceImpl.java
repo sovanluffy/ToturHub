@@ -28,6 +28,15 @@ public class BookingServiceImpl implements BookingService {
     private final DayTimeSlotRepository dayTimeSlotRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
+    // ================= NOTIFY HELPER =================
+    private void notify(String email, NotificationMessage message) {
+        messagingTemplate.convertAndSendToUser(
+                email,
+                "/queue/notifications",
+                message
+        );
+    }
+
     // ================= BOOK CLASS =================
     @Override
     @Transactional
@@ -41,17 +50,24 @@ public class BookingServiceImpl implements BookingService {
         OpenClass openClass = openClassRepository.findById(openClassId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
 
-        DayTimeSlot slot = dayTimeSlotRepository.findById(request.getDayTimeSlotId())
+        // 🔥 LOCK SLOT (prevent race condition)
+        DayTimeSlot slot = dayTimeSlotRepository.findByIdForUpdate(request.getDayTimeSlotId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
         // validate slot belongs to class
         if (!slot.getOpenClass().getId().equals(openClassId)) {
-            throw new RuntimeException("Schedule does not belong to this class");
+            throw new IllegalStateException("Schedule does not belong to this class");
         }
 
-        // check booking
+        // prevent duplicate booking
+        boolean exists = bookingRepository.existsByUserIdAndScheduleId(student.getId(), slot.getId());
+        if (exists) {
+            throw new IllegalStateException("You already booked this slot!");
+        }
+
+        // check already booked
         if (Boolean.TRUE.equals(slot.getBooked())) {
-            throw new RuntimeException("This schedule is already booked!");
+            throw new IllegalStateException("This schedule is already booked!");
         }
 
         BookingClass booking = BookingClass.builder()
@@ -66,14 +82,11 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
-        // mark slot booked
+        // mark slot booked (no need save explicitly in @Transactional)
         slot.setBooked(true);
-        dayTimeSlotRepository.save(slot);
 
-        // notify tutor
-        messagingTemplate.convertAndSendToUser(
+        notify(
                 openClass.getTutor().getUser().getEmail(),
-                "/queue/notifications",
                 new NotificationMessage(
                         "BOOKING_REQUEST",
                         student.getFullname() + " booked your class: " + openClass.getTitle(),
@@ -97,9 +110,8 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass updated = bookingRepository.save(booking);
 
-        messagingTemplate.convertAndSendToUser(
+        notify(
                 booking.getUser().getEmail(),
-                "/queue/notifications",
                 new NotificationMessage(
                         "BOOKING_CONFIRMED",
                         "Booking confirmed: " + booking.getOpenClass().getTitle(),
@@ -124,14 +136,12 @@ public class BookingServiceImpl implements BookingService {
         DayTimeSlot slot = booking.getSchedule();
         if (slot != null) {
             slot.setBooked(false);
-            dayTimeSlotRepository.save(slot);
         }
 
         BookingClass updated = bookingRepository.save(booking);
 
-        messagingTemplate.convertAndSendToUser(
+        notify(
                 booking.getUser().getEmail(),
-                "/queue/notifications",
                 new NotificationMessage(
                         "BOOKING_REJECTED",
                         "Booking rejected: " + booking.getOpenClass().getTitle(),
@@ -147,19 +157,22 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
         return bookingRepository.findByUserId(userId)
-                .stream().map(this::mapToResponse).collect(Collectors.toList());
+                .stream().map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<BookingResponse> getBookingsByClassId(Long classId) {
         return bookingRepository.findByOpenClassId(classId)
-                .stream().map(this::mapToResponse).collect(Collectors.toList());
+                .stream().map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
         return bookingRepository.findByTutorId(tutorId)
-                .stream().map(this::mapToResponse).collect(Collectors.toList());
+                .stream().map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     // ================= MAPPER =================

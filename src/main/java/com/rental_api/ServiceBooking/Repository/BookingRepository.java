@@ -12,4 +12,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
     List<BookingClass> findByOpenClassId(Long classId);
 
     List<BookingClass> findByTutorId(Long tutorId);
+
+    // 🔥 FIX: prevent duplicate booking
+    boolean existsByUserIdAndScheduleId(Long userId, Long scheduleId);
 }
