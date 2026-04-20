@@ -118,7 +118,6 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
-        // ================= NOTIFY TUTOR =================
         sendNotification(
                 openClass.getTutor().getUser().getEmail(),
                 "BOOKING_REQUEST",
@@ -200,7 +199,7 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(updated);
     }
 
-    // ================= GET USER BOOKINGS =================
+    // ================= USER BOOKINGS =================
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
         return bookingRepository.findByUserId(userId)
@@ -209,7 +208,7 @@ public class BookingServiceImpl implements BookingService {
                 .toList();
     }
 
-    // ================= GET CLASS BOOKINGS =================
+    // ================= CLASS BOOKINGS =================
     @Override
     public List<BookingResponse> getBookingsByClassId(Long classId) {
         return bookingRepository.findByOpenClassId(classId)
@@ -218,10 +217,40 @@ public class BookingServiceImpl implements BookingService {
                 .toList();
     }
 
-    // ================= GET TUTOR BOOKINGS (FIXED) =================
+    // ================= TUTOR BOOKINGS =================
     @Override
     public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
-        return bookingRepository.findByOpenClass_Tutor_Id(tutorId)
+        return bookingRepository.findByTutorId(tutorId)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    // ================= STUDENT (ME) =================
+    @Override
+    public List<BookingResponse> getMyBookings() {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User student = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return bookingRepository.findByUserId(student.getId())
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    // ================= TUTOR (ME) =================
+    @Override
+    public List<BookingResponse> getMyTutorBookings() {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User tutor = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
+
+        return bookingRepository.findByTutorId(tutor.getId())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -236,13 +265,13 @@ public class BookingServiceImpl implements BookingService {
 
         return BookingResponse.builder()
                 .bookingId(b.getId())
-                .userId(u.getId())
-                .classId(oc.getId())
-                .classTitle(oc.getTitle())
-                .scheduleId(s.getId())
-                .day(s.getDay())
-                .startTime(s.getStartTime())
-                .endTime(s.getEndTime())
+                .userId(u != null ? u.getId() : null)
+                .classId(oc != null ? oc.getId() : null)
+                .classTitle(oc != null ? oc.getTitle() : null)
+                .scheduleId(s != null ? s.getId() : null)
+                .day(s != null ? s.getDay() : null)
+                .startTime(s != null ? s.getStartTime() : null)
+                .endTime(s != null ? s.getEndTime() : null)
                 .status(b.getStatus())
                 .note(b.getNote())
                 .telegram(b.getTelegram())

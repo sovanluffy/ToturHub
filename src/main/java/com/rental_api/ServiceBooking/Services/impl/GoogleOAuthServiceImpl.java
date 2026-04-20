@@ -129,20 +129,20 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                 .toList();
 
         // Generate JWT
-        String token = jwtUtils.generateToken(
-                user.getId(),
-                user.getEmail(),
-                user.getFullname(),
-                roles,
-                List.of(1L)
-        );
+        // String token = jwtUtils.generateToken(
+        //         user.getId(),
+        //         user.getEmail(),
+        //         user.getFullname(),
+        //         roles,
+        //         List.of(1L)
+        // );
 
         return AuthResponse.builder()
                 .userId(user.getId())
                 .fullname(user.getFullname())
                 .email(user.getEmail())
                 .avatarUrl(user.getAvatarUrl())
-                .token(token)
+                // .token(token)
                 .message("Login success via Google")
                 .build();
     }

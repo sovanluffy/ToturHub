@@ -41,11 +41,19 @@ public class BookingClassController {
         );
     }
 
-    // ================= TUTOR =================
+    // ================= STUDENT (ME - RECOMMENDED) =================
 
-    /**
-     * ✅ MAIN FIXED ENDPOINT (use this)
-     */
+    @GetMapping("/user/me")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<List<BookingResponse>> getMyBookings() {
+
+        return ResponseEntity.ok(
+                bookingService.getMyBookings()
+        );
+    }
+
+    // ================= TUTOR (OLD - OPTIONAL) =================
+
     @GetMapping("/tutor/{tutorId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getBookingsByTutorId(
@@ -53,6 +61,17 @@ public class BookingClassController {
 
         return ResponseEntity.ok(
                 bookingService.getBookingsByTutorId(tutorId)
+        );
+    }
+
+    // ================= TUTOR (ME - RECOMMENDED) =================
+
+    @GetMapping("/tutor/me")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
+
+        return ResponseEntity.ok(
+                bookingService.getMyTutorBookings()
         );
     }
 

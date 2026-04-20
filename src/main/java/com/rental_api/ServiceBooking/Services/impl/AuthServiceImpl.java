@@ -8,14 +8,14 @@ import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Exception.ConflictException;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.*;
+import com.rental_api.ServiceBooking.Security.JwtUtils;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
-import com.rental_api.ServiceBooking.Security.CustomUserDetails;
-import com.rental_api.ServiceBooking.Security.JwtUtils;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -40,35 +39,25 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtils jwtUtils;
     private final CloudinaryService cloudinaryService;
 
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
-    );
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
-    // -----------------------------
-    // REGISTER
-    // -----------------------------
+    // ================= REGISTER =================
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request, MultipartFile avatar) {
+
         validateEmail(request.getEmail());
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new ConflictException("Email already exists");
         }
 
-        // Upload avatar if provided
         String avatarUrl = null;
         if (avatar != null && !avatar.isEmpty()) {
             avatarUrl = cloudinaryService.uploadFile(avatar);
         }
 
-        // Validate location exists if provided
-        if (request.getLocationId() != null) {
-            locationRepository.findById(request.getLocationId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Location not found: " + request.getLocationId()));
-        }
-
-        // Create User
         User user = User.builder()
                 .fullname(request.getFullname())
                 .email(request.getEmail())
@@ -80,9 +69,9 @@ public class AuthServiceImpl implements AuthService {
                 .locationId(request.getLocationId())
                 .build();
 
-        // Assign default student role
         Role studentRole = roleRepository.findByName("STUDENT")
                 .orElseThrow(() -> new ResourceNotFoundException("Student role not found"));
+
         user.setRoles(Set.of(studentRole));
 
         user = userRepository.save(user);
@@ -90,12 +79,11 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(user, "User registered successfully");
     }
 
-    // -----------------------------
-    // LOGIN
-    // -----------------------------
+    // ================= LOGIN =================
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
+
         validateEmail(request.getEmail());
 
         User user = userRepository.findByEmail(request.getEmail())
@@ -108,71 +96,63 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(user, "Login successful");
     }
 
-    // -----------------------------
-    // GET PROFILE BY USER ID (Admin Use)
-    // -----------------------------
+    // ================= PROFILE =================
     @Override
     @Transactional(readOnly = true)
     public ProfileResponse getProfile(Long userId) {
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return buildProfileResponse(user);
     }
 
-    // -----------------------------
-    // GET PROFILE FROM TOKEN (Current Logged-in User)
-    // -----------------------------
     @Override
-    @Transactional(readOnly = true)
     public ProfileResponse getProfileFromToken() {
         Long userId = getCurrentUserId();
-        return getProfile(userId); // reuse existing method
+        return getProfile(userId);
     }
 
-    // -----------------------------
-    // REQUEST TUTOR
-    // -----------------------------
+    // ================= REQUEST TUTOR =================
     @Override
     @Transactional
     public AuthResponse requestTutor() {
+
         Long userId = getCurrentUserId();
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        if (user.getStatus() == User.Status.PENDING) {
-            throw new ConflictException("Tutor request already submitted");
-        }
 
         Role tutorRole = roleRepository.findByName("TUTOR")
                 .orElseThrow(() -> new ResourceNotFoundException("Tutor role not found"));
 
         user.getRoles().add(tutorRole);
         user.setStatus(User.Status.PENDING);
-        user = userRepository.save(user);
 
-        if (tutorRepository.findByUserEmail(user.getEmail()).isEmpty()) {
-            Tutor tutorProfile = Tutor.builder()
+        userRepository.save(user);
+
+        if (tutorRepository.findByUserId(user.getId()).isEmpty()) {
+            Tutor tutor = Tutor.builder()
                     .user(user)
                     .isPublic(false)
                     .averageRating(0.0)
                     .totalStudentsTaught(0)
                     .yearsOfExperience(0)
                     .build();
-            tutorRepository.save(tutorProfile);
+
+            tutorRepository.save(tutor);
         }
 
         return buildAuthResponse(user, "Tutor request submitted");
     }
 
-    // -----------------------------
-    // APPROVE / REJECT TUTOR
-    // -----------------------------
+    // ================= APPROVE / REJECT =================
     @Override
     @Transactional
     public void approveTutor(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         user.setStatus(User.Status.ACTIVE);
         userRepository.save(user);
     }
@@ -182,33 +162,38 @@ public class AuthServiceImpl implements AuthService {
     public void rejectTutor(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         user.setStatus(User.Status.REJECTED);
         userRepository.save(user);
     }
 
-    // -----------------------------
-    // HELPERS
-    // -----------------------------
-    private void validateEmail(String email) {
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
-            throw new ConflictException("Invalid email format");
-        }
-    }
-
+    // ================= BUILD AUTH RESPONSE =================
     private AuthResponse buildAuthResponse(User user, String message) {
-        List<String> roleNames = user.getRoles().stream()
+
+        List<String> roles = user.getRoles().stream()
                 .map(Role::getName)
-                .collect(Collectors.toList());
+                .toList();
 
         List<Long> roleIds = user.getRoles().stream()
                 .map(Role::getId)
-                .collect(Collectors.toList());
+                .toList();
 
+        // 🔥 GET tutorId from DB
+        Long tutorId = null;
+
+        if (roles.contains("TUTOR")) {
+            tutorId = tutorRepository.findByUserId(user.getId())
+                    .map(Tutor::getId)
+                    .orElse(null);
+        }
+
+        // ⚠️ IMPORTANT FIX: ORDER MUST MATCH JwtUtils
         String token = jwtUtils.generateToken(
-                user.getId(),
-                user.getEmail(),
-                user.getEmail(),
-                roleNames,
+                user.getId(),        // userId
+                tutorId,             // tutorId
+                user.getEmail(),     // email
+                user.getFullname(),  // username
+                roles,
                 roleIds
         );
 
@@ -218,23 +203,23 @@ public class AuthServiceImpl implements AuthService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
-                .message(message)
-                .token(token)
-                .roles(roleNames)
+                .roles(roles)
                 .roleIds(roleIds)
+                .token(token)
+                .message(message)
                 .locationId(user.getLocationId())
-                .city(user.getLocationId() != null ? locationRepository.findById(user.getLocationId()).map(Location::getCity).orElse(null) : null)
-                .district(user.getLocationId() != null ? locationRepository.findById(user.getLocationId()).map(Location::getDistrict).orElse(null) : null)
-                .fullAddress(user.getLocationId() != null ? locationRepository.findById(user.getLocationId()).map(Location::getAddress).orElse(null) : null)
                 .build();
     }
 
+    // ================= PROFILE =================
     private ProfileResponse buildProfileResponse(User user) {
+
         List<String> roles = user.getRoles().stream()
                 .map(Role::getName)
-                .collect(Collectors.toList());
+                .toList();
 
         Location location = null;
+
         if (user.getLocationId() != null) {
             location = locationRepository.findById(user.getLocationId()).orElse(null);
         }
@@ -255,12 +240,16 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    // ================= SECURITY =================
     private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated() &&
-                authentication.getPrincipal() instanceof CustomUserDetails userDetails) {
-            return userDetails.getId();
+        return (Long) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+    }
+
+    private void validateEmail(String email) {
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new ConflictException("Invalid email format");
         }
-        throw new ResourceNotFoundException("Authenticated user not found");
     }
 }
