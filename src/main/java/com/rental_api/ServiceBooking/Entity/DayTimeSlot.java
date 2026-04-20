@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.DayOfWeek;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "day_time_slots")
@@ -21,9 +22,9 @@ public class DayTimeSlot {
     @Enumerated(EnumType.STRING)
     private DayOfWeek day;
 
-    // ✅ FIX: use String instead of LocalTime
-    private String startTime; // "08:00"
-    private String endTime; // "10:00"
+    // ✅ FIX: use LocalTime (BEST PRACTICE)
+    private LocalTime startTime;
+    private LocalTime endTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")
