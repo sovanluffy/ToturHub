@@ -46,8 +46,9 @@ public class SecurityConfiguration {
                                                 // 🔓 Preflight
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                                                // 🔓 WebSocket
+                                                // 🔓 WebSocket (FIXED)
                                                 .requestMatchers("/ws/**").permitAll()
+                                                .requestMatchers("/ws").permitAll()
 
                                                 // 🔓 AUTH
                                                 .requestMatchers(
@@ -74,18 +75,16 @@ public class SecurityConfiguration {
                                                                 "/webjars/**")
                                                 .permitAll()
 
-                                                // 💬 MESSENGER CHAT APIs (NEW)
-                // We allow any authenticated user (Student/Tutor/Admin) to use chat
-                .requestMatchers("/api/v1/chat/**").authenticated()
+                                                // 💬 CHAT APIs
+                                                .requestMatchers("/api/v1/chat/**").authenticated()
 
                                                 // 🔓 PUBLIC GET APIs
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards")
-                                                .permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
 
-                                                // 🔥 SUBJECTS (IMPORTANT FIX)
+                                                // 🔥 SUBJECTS
                                                 .requestMatchers("/api/subjects/**").permitAll()
 
                                                 // ================= ADMIN =================
@@ -95,49 +94,34 @@ public class SecurityConfiguration {
 
                                                 // ================= TUTOR =================
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("TUTOR")
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/classes/open")
-                                                .hasRole("TUTOR")
+                                                .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("TUTOR")
                                                 .requestMatchers("/api/v1/open-classes/**").hasRole("TUTOR")
 
                                                 // ================= BOOKING =================
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**")
-                                                .hasRole("STUDENT")
-
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**")
-                                                .hasAnyRole("STUDENT", "ADMIN")
-
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/tutor/**")
-                                                .hasAnyRole("TUTOR", "ADMIN")
-
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**")
-                                                .hasAnyRole("TUTOR", "ADMIN")
-
-                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm/**")
-                                                .hasRole("TUTOR")
-
-                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/reject/**")
-                                                .hasRole("TUTOR")
-
-                                                .requestMatchers(HttpMethod.PUT, "/api/v1/bookings/**")
-                                                .hasAnyRole("STUDENT", "ADMIN")
-
-                                                .requestMatchers(HttpMethod.DELETE, "/api/v1/bookings/**")
-                                                .hasAnyRole("STUDENT", "ADMIN")
+                                                .requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**").hasRole("STUDENT")
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**").hasAnyRole("STUDENT", "ADMIN")
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/tutor/**").hasAnyRole("TUTOR", "ADMIN")
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**").hasAnyRole("TUTOR", "ADMIN")
+                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm/**").hasRole("TUTOR")
+                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/reject/**").hasRole("TUTOR")
+                                                .requestMatchers(HttpMethod.PUT, "/api/v1/bookings/**").hasAnyRole("STUDENT", "ADMIN")
+                                                .requestMatchers(HttpMethod.DELETE, "/api/v1/bookings/**").hasAnyRole("STUDENT", "ADMIN")
 
                                                 // fallback
-                                                .anyRequest().authenticated())
+                                                .anyRequest().authenticated()
+                                )
 
-                                // ================= SESSION (JWT STATELESS) =================
+                                // ================= SESSION =================
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                                // ================= AUTH PROVIDER =================
+                                // ================= PROVIDER =================
                                 .authenticationProvider(authenticationProvider)
 
                                 // ================= JWT FILTER =================
                                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-                                // ================= EXCEPTION HANDLING =================
+                                // ================= EXCEPTION =================
                                 .exceptionHandling(ex -> ex
                                                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                                                 .accessDeniedHandler(jwtAccessDeniedHandler));
@@ -145,18 +129,14 @@ public class SecurityConfiguration {
                 return http.build();
         }
 
-        // ================= CORS CONFIG =================
+        // ================= CORS (ALLOW ALL FIX) =================
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
 
                 CorsConfiguration configuration = new CorsConfiguration();
 
-                configuration.setAllowedOrigins(List.of(
-                                "http://localhost:3000",
-                                "http://localhost:5173",
-                                "http://localhost:5181",
-                                "http://localhost:8080",
-                                "https://toturhub-dev.onrender.com"));
+                // ✅ allow all origins (WebSocket + API)
+                configuration.setAllowedOriginPatterns(List.of("*"));
 
                 configuration.setAllowedMethods(List.of(
                                 "GET",
@@ -167,7 +147,9 @@ public class SecurityConfiguration {
                                 "OPTIONS"));
 
                 configuration.setAllowedHeaders(List.of("*"));
+
                 configuration.setAllowCredentials(true);
+
                 configuration.setMaxAge(3600L);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

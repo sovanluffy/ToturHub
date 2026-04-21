@@ -26,7 +26,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+
         String path = request.getServletPath();
+
+        // 🔥 IMPORTANT FIX: DO NOT FILTER WEBSOCKET
+        if (path.startsWith("/ws")) {
+            return true;
+        }
+
         return path.startsWith("/swagger-ui")
                 || path.startsWith("/swagger-ui.html")
                 || path.startsWith("/v3/api-docs")
@@ -45,7 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        // 1. Skip filter if no Bearer token is present
+        // ✅ SAFE: allow requests without token (important for WS handshake)
         if (StringUtils.isEmpty(authHeader) || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -53,21 +60,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String jwt = authHeader.substring(7);
 
-        // 2. Validate token
         if (!jwtUtils.validateToken(jwt)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 3. Extract data from token
         Long userId = jwtUtils.extractUserId(jwt);
         String email = jwtUtils.extractEmail(jwt);
         List<String> roles = jwtUtils.extractRoles(jwt);
 
-        // 4. Authenticate if not already authenticated in this context
         if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            
-            // ✅ CONVERSION: Map "tutor" -> "ROLE_tutor" so .hasRole("tutor") works
+
             List<SimpleGrantedAuthority> authorities = roles.stream()
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                     .collect(Collectors.toList());
@@ -75,19 +78,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             CustomUserDetails userDetails = new CustomUserDetails(
                     userId,
                     email,
-                    "", // Password not required for JWT auth
+                    "",
                     authorities
             );
 
-            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    userDetails,
-                    null,
-                    userDetails.getAuthorities()
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+
+            authToken.setDetails(
+                    new WebAuthenticationDetailsSource().buildDetails(request)
             );
 
-            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            
-            // ✅ Set the authentication in SecurityContext
             SecurityContextHolder.getContext().setAuthentication(authToken);
         }
 
