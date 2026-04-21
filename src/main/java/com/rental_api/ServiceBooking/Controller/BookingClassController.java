@@ -17,7 +17,7 @@ public class BookingClassController {
 
     private final BookingService bookingService;
 
-    // ================= STUDENT BOOK CLASS =================
+    /* ================= BOOK CLASS ================= */
     @PostMapping("/book-class/{openClassId}")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<BookingResponse> bookClass(
@@ -29,7 +29,8 @@ public class BookingClassController {
         );
     }
 
-    // ================= GET BOOKINGS BY USER ID =================
+    /* ================= STUDENT ================= */
+
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR','ADMIN')")
     public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
@@ -40,7 +41,6 @@ public class BookingClassController {
         );
     }
 
-    // ================= GET MY BOOKINGS (STUDENT) =================
     @GetMapping("/user/me")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<List<BookingResponse>> getMyBookings() {
@@ -49,7 +49,8 @@ public class BookingClassController {
         );
     }
 
-    // ================= GET BOOKINGS BY TUTOR ID =================
+    /* ================= TUTOR ================= */
+
     @GetMapping("/tutor/{tutorId}")
     @PreAuthorize("hasAnyRole('TUTOR','ADMIN')")
     public ResponseEntity<List<BookingResponse>> getBookingsByTutorId(
@@ -60,7 +61,6 @@ public class BookingClassController {
         );
     }
 
-    // ================= TUTOR BOOKINGS (SELF) =================
     @GetMapping("/tutor/me")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
@@ -69,9 +69,10 @@ public class BookingClassController {
         );
     }
 
-    // ================= BOOKINGS BY CLASS =================
+    /* ================= CLASS ================= */
+
     @GetMapping("/class/{openClassId}")
-    @PreAuthorize("hasRole('TUTOR')")
+    @PreAuthorize("hasAnyRole('TUTOR','ADMIN')")
     public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
             @PathVariable Long openClassId
     ) {
@@ -80,7 +81,8 @@ public class BookingClassController {
         );
     }
 
-    // ================= CONFIRM BOOKING =================
+    /* ================= ACTIONS ================= */
+
     @PatchMapping("/confirm/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> confirmBooking(
@@ -91,7 +93,6 @@ public class BookingClassController {
         );
     }
 
-    // ================= REJECT BOOKING =================
     @PatchMapping("/reject/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> rejectBooking(
@@ -102,7 +103,8 @@ public class BookingClassController {
         );
     }
 
-    // ================= PENDING COUNT (SIDEBAR BADGE) =================
+    /* ================= DASHBOARD ================= */
+
     @GetMapping("/tutor/me/pending-count")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<Long> getPendingCount() {

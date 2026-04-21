@@ -24,27 +24,24 @@ public class ChatController {
             @RequestBody ChatRequest request
     ) {
         String senderEmail = authentication.getName();
-
-        ChatResponse response = bookingService.sendMessage(senderEmail, request);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(
+                bookingService.sendMessage(senderEmail, request)
+        );
     }
 
-    // ================= GET CHAT HISTORY =================
+    // ================= CHAT HISTORY =================
     @GetMapping("/history/{otherUserId}")
-    public ResponseEntity<List<ChatResponse>> getChatHistory(
+    public ResponseEntity<List<ChatResponse>> getHistory(
             Authentication authentication,
             @PathVariable Long otherUserId
     ) {
         String myEmail = authentication.getName();
-
-        List<ChatResponse> messages =
-                bookingService.getChatHistory(myEmail, otherUserId);
-
-        return ResponseEntity.ok(messages);
+        return ResponseEntity.ok(
+                bookingService.getChatHistory(myEmail, otherUserId)
+        );
     }
 
-    // ================= MARK AS READ =================
+    // ================= MARK AS READ (FIXED) =================
     @PutMapping("/read/{senderId}")
     public ResponseEntity<Void> markAsRead(
             Authentication authentication,

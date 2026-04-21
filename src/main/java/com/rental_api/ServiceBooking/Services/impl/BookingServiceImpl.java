@@ -18,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -32,7 +33,8 @@ public class BookingServiceImpl implements BookingService {
     private final ChatMessageRepository chatMessageRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // ================= CHAT: SEND MESSAGE =================
+    /* ================= CHAT ================= */
+
     @Override
     @Transactional
     public ChatResponse sendMessage(String senderEmail, ChatRequest request) {
@@ -48,9 +50,11 @@ public class BookingServiceImpl implements BookingService {
                 .recipient(recipient)
                 .content(request.getContent())
                 .isRead(false)
+                .timestamp(LocalDateTime.now())
                 .build();
 
         ChatMessage saved = chatMessageRepository.save(message);
+
         ChatResponse response = mapToChatResponse(saved);
 
         messagingTemplate.convertAndSendToUser(
@@ -62,7 +66,6 @@ public class BookingServiceImpl implements BookingService {
         return response;
     }
 
-    // ================= CHAT HISTORY =================
     @Override
     public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
 
@@ -75,7 +78,6 @@ public class BookingServiceImpl implements BookingService {
                 .toList();
     }
 
-    // ================= MARK READ =================
     @Override
     @Transactional
     public void markMessagesAsRead(String recipientEmail, Long senderId) {
@@ -84,25 +86,26 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         List<ChatMessage> unread =
-                chatMessageRepository.findByRecipient_IdAndSender_IdAndIsReadFalse(me.getId(), senderId);
-
-        if (!unread.isEmpty()) {
-            unread.forEach(m -> m.setRead(true));
-            chatMessageRepository.saveAll(unread);
-
-            User sender = userRepository.findById(senderId).orElse(null);
-
-            if (sender != null) {
-                messagingTemplate.convertAndSendToUser(
-                        sender.getEmail(),
-                        "/queue/seen-notifications",
-                        me.getId()
+                chatMessageRepository.findByRecipient_IdAndSender_IdAndIsReadFalse(
+                        me.getId(), senderId
                 );
-            }
+
+        unread.forEach(m -> m.setRead(true));
+        chatMessageRepository.saveAll(unread);
+
+        User sender = userRepository.findById(senderId).orElse(null);
+
+        if (sender != null) {
+            messagingTemplate.convertAndSendToUser(
+                    sender.getEmail(),
+                    "/queue/seen-notifications",
+                    me.getId()
+            );
         }
     }
 
-    // ================= BOOK CLASS =================
+    /* ================= BOOKINGS ================= */
+
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
@@ -117,10 +120,6 @@ public class BookingServiceImpl implements BookingService {
 
         DayTimeSlot slot = dayTimeSlotRepository.findByIdForUpdate(request.getDayTimeSlotId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
-
-        if (!slot.getOpenClass().getId().equals(openClassId)) {
-            throw new IllegalStateException("Schedule does not belong to this class");
-        }
 
         if (bookingRepository.existsByUser_IdAndSchedule_Id(student.getId(), slot.getId())) {
             throw new IllegalStateException("Already booked!");
@@ -151,16 +150,12 @@ public class BookingServiceImpl implements BookingService {
                 student.getFullname() + " requested " + openClass.getTitle(),
                 saved.getId(),
                 openClass.getId(),
-                student,
-                openClass,
-                slot,
-                request.getTelegram()
+                student
         );
 
         return mapToResponse(saved);
     }
 
-    // ================= CONFIRM BOOKING + CHAT =================
     @Override
     @Transactional
     public BookingResponse confirmBooking(Long bookingId) {
@@ -171,19 +166,15 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         BookingClass saved = bookingRepository.save(booking);
 
-        User tutor = booking.getTutor().getUser();
-        User student = booking.getUser();
-
         sendSystemChatMessage(
-                tutor,
-                student,
+                booking.getTutor().getUser(),
+                booking.getUser(),
                 "🎉 Your booking for '" + booking.getOpenClass().getTitle() + "' has been CONFIRMED."
         );
 
         return mapToResponse(saved);
     }
 
-    // ================= REJECT BOOKING + CHAT =================
     @Override
     @Transactional
     public BookingResponse rejectBooking(Long bookingId) {
@@ -194,40 +185,17 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.REJECTED);
         BookingClass saved = bookingRepository.save(booking);
 
-        User tutor = booking.getTutor().getUser();
-        User student = booking.getUser();
-
         sendSystemChatMessage(
-                tutor,
-                student,
+                booking.getTutor().getUser(),
+                booking.getUser(),
                 "❌ Your booking for '" + booking.getOpenClass().getTitle() + "' was REJECTED."
         );
 
         return mapToResponse(saved);
     }
 
-    // ================= SYSTEM CHAT MESSAGE =================
-    private void sendSystemChatMessage(User sender, User recipient, String content) {
+    /* ================= GETTERS ================= */
 
-        ChatMessage message = ChatMessage.builder()
-                .sender(sender)
-                .recipient(recipient)
-                .content(content)
-                .isRead(false)
-                .build();
-
-        ChatMessage saved = chatMessageRepository.save(message);
-
-        ChatResponse response = mapToChatResponse(saved);
-
-        messagingTemplate.convertAndSendToUser(
-                recipient.getEmail(),
-                "/queue/messages",
-                response
-        );
-    }
-
-    // ================= GETTERS =================
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
         return bookingRepository.findByUser_Id(userId).stream().map(this::mapToResponse).toList();
@@ -246,8 +214,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public List<BookingResponse> getMyBookings() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User student = userRepository.findByEmail(email).orElseThrow();
-        return bookingRepository.findByUser_Id(student.getId()).stream().map(this::mapToResponse).toList();
+        User user = userRepository.findByEmail(email).orElseThrow();
+        return bookingRepository.findByUser_Id(user.getId()).stream().map(this::mapToResponse).toList();
     }
 
     @Override
@@ -264,13 +232,35 @@ public class BookingServiceImpl implements BookingService {
         return bookingRepository.countByTutor_IdAndStatus(tutor.getId(), BookingStatus.PENDING);
     }
 
-    // ================= MAPPERS =================
+    /* ================= SYSTEM CHAT MESSAGE (FIXED) ================= */
+
+    private void sendSystemChatMessage(User sender, User recipient, String content) {
+
+        ChatMessage message = ChatMessage.builder()
+                .sender(sender)
+                .recipient(recipient)
+                .content(content)
+                .isRead(false)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        ChatMessage saved = chatMessageRepository.save(message);
+
+        ChatResponse response = mapToChatResponse(saved);
+
+        messagingTemplate.convertAndSendToUser(
+                recipient.getEmail(),
+                "/queue/messages",
+                response
+        );
+    }
+
+    /* ================= MAPPERS ================= */
+
     private ChatResponse mapToChatResponse(ChatMessage m) {
         ChatResponse res = new ChatResponse();
         res.setId(m.getId());
         res.setSenderId(m.getSender().getId());
-        res.setSenderName(m.getSender().getFullname());
-        res.setSenderAvatar(m.getSender().getAvatarUrl());
         res.setRecipientId(m.getRecipient().getId());
         res.setContent(m.getContent());
         res.setTimestamp(m.getTimestamp());
@@ -300,11 +290,10 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
-    // ================= NOTIFICATION =================
+    /* ================= NOTIFICATION ================= */
+
     private void sendNotification(String email, String type, String content,
-                                  Long bId, Long cId,
-                                  User student, OpenClass o,
-                                  DayTimeSlot s, String tel) {
+                                  Long bId, Long cId, User student) {
 
         Notification n = Notification.builder()
                 .recipientEmail(email)
@@ -324,16 +313,6 @@ public class BookingServiceImpl implements BookingService {
         msg.setClassId(cId);
         msg.setUserId(student.getId());
         msg.setFullname(student.getFullname());
-        msg.setEmail(student.getEmail());
-        msg.setPhone(student.getPhone());
-        msg.setAvatarUrl(student.getAvatarUrl());
-        msg.setTutorId(o.getTutor() != null ? o.getTutor().getId() : null);
-        msg.setStudentName(student.getFullname());
-        msg.setClassTitle(o.getTitle());
-        msg.setDay(s.getDay().toString());
-        msg.setStartTime(s.getStartTime().toString());
-        msg.setEndTime(s.getEndTime().toString());
-        msg.setTelegram(tel);
 
         messagingTemplate.convertAndSendToUser(
                 email,

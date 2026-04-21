@@ -9,29 +9,44 @@ import java.util.List;
 
 public interface BookingService {
 
-    // ================= EXISTING BOOKING CORE =================
+    /* ================= BOOKING CORE ================= */
+
     BookingResponse bookClass(Long openClassId, BookingClassRequest request);
+
     BookingResponse confirmBooking(Long bookingId);
+
     BookingResponse rejectBooking(Long bookingId);
 
-    // ================= EXISTING GETTERS =================
+    /* ================= BOOKING GETTERS ================= */
+
     List<BookingResponse> getBookingsByUserId(Long userId);
+
     List<BookingResponse> getBookingsByClassId(Long classId);
+
     List<BookingResponse> getBookingsByTutorId(Long tutorId);
 
-    // ================= EXISTING CURRENT USER =================
     List<BookingResponse> getMyBookings();
+
     List<BookingResponse> getMyTutorBookings();
+
     Long getMyPendingBookingsCount();
 
-    // ================= NEW: MESSENGER CHAT CORE =================
-    
-    /** Sends message, saves to DB, and pushes to recipient via WebSocket */
+    /* ================= CHAT SYSTEM ================= */
+
+    /**
+     * Save message in DB + return saved message
+     * (WebSocket layer will broadcast it)
+     */
     ChatResponse sendMessage(String senderEmail, ChatRequest request);
 
-    /** Retrieves history between current user and a specific recipient */
+    /**
+     * Get chat history between current user and other user
+     * ALWAYS returns DB data (source of truth)
+     */
     List<ChatResponse> getChatHistory(String myEmail, Long otherUserId);
 
-    /** Updates messages to "Read" status when the chat window is opened */
+    /**
+     * Mark messages as read when user opens chat
+     */
     void markMessagesAsRead(String recipientEmail, Long senderId);
 }
