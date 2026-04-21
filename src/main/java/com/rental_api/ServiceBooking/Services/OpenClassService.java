@@ -21,4 +21,6 @@ public interface OpenClassService {
     List<OpenClassResponse> getAllPublicCards();
 
     void deleteClass(Long id);
+
+    List<OpenClassResponse> filterOpenClasses(String location, String subject);
 }

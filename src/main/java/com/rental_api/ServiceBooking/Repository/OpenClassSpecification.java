@@ -5,6 +5,8 @@ import com.rental_api.ServiceBooking.Entity.OpenClass.ClassStatus;
 import com.rental_api.ServiceBooking.Entity.Subject;
 import com.rental_api.ServiceBooking.Entity.Location; // Added
 import jakarta.persistence.criteria.*;
+
+
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
@@ -55,4 +57,5 @@ public class OpenClassSpecification {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
+
 }
