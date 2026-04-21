@@ -9,6 +9,7 @@ import com.rental_api.ServiceBooking.Exception.ConflictException;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Security.JwtUtils;
+import com.rental_api.ServiceBooking.Security.CustomUserDetails;
 import com.rental_api.ServiceBooking.Services.AuthService;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 
@@ -178,7 +179,6 @@ public class AuthServiceImpl implements AuthService {
                 .map(Role::getId)
                 .toList();
 
-        // 🔥 GET tutorId from DB
         Long tutorId = null;
 
         if (roles.contains("TUTOR")) {
@@ -187,12 +187,11 @@ public class AuthServiceImpl implements AuthService {
                     .orElse(null);
         }
 
-        // ⚠️ IMPORTANT FIX: ORDER MUST MATCH JwtUtils
         String token = jwtUtils.generateToken(
-                user.getId(),        // userId
-                tutorId,             // tutorId
-                user.getEmail(),     // email
-                user.getFullname(),  // username
+                user.getId(),
+                tutorId,
+                user.getEmail(),
+                user.getFullname(),
                 roles,
                 roleIds
         );
@@ -211,7 +210,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    // ================= PROFILE =================
+    // ================= PROFILE BUILDER =================
     private ProfileResponse buildProfileResponse(User user) {
 
         List<String> roles = user.getRoles().stream()
@@ -240,13 +239,25 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    // ================= SECURITY =================
+    // ================= 🔥 FIXED CORE =================
     private Long getCurrentUserId() {
-        return (Long) SecurityContextHolder.getContext()
+
+        Object principal = SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getPrincipal();
+
+        if (principal instanceof CustomUserDetails userDetails) {
+            return userDetails.getId(); // ✅ FIX
+        }
+
+        if (principal instanceof Long) {
+            return (Long) principal;
+        }
+
+        throw new RuntimeException("Invalid authentication principal");
     }
 
+    // ================= VALIDATION =================
     private void validateEmail(String email) {
         if (!EMAIL_PATTERN.matcher(email).matches()) {
             throw new ConflictException("Invalid email format");
