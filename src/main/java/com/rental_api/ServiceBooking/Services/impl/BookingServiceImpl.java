@@ -62,7 +62,6 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
-        // 👉 SEND CHAT MESSAGE TO TUTOR
         sendSystemChat(
                 student,
                 openClass.getTutor().getUser(),
@@ -84,7 +83,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         BookingClass saved = bookingRepository.save(booking);
 
-        // 👉 CHAT MESSAGE TO STUDENT
         sendSystemChat(
                 booking.getTutor().getUser(),
                 booking.getUser(),
@@ -106,7 +104,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.REJECTED);
         BookingClass saved = bookingRepository.save(booking);
 
-        // 👉 CHAT MESSAGE TO STUDENT
         sendSystemChat(
                 booking.getTutor().getUser(),
                 booking.getUser(),
@@ -116,20 +113,51 @@ public class BookingServiceImpl implements BookingService {
 
         return mapToResponse(saved);
     }
-@Override
-public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
 
-    User me = userRepository.findByEmail(myEmail)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    /* ================= CHAT HISTORY ================= */
+    @Override
+    public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
 
-    List<ChatMessage> messages =
-            chatMessageRepository.findChatHistory(me.getId(), otherUserId);
+        User me = userRepository.findByEmail(myEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-    return messages.stream()
-            .map(this::mapToChatResponse)
-            .toList();
-}
-    /* ================= SYSTEM CHAT (MAIN LOGIC) ================= */
+        List<ChatMessage> messages =
+                chatMessageRepository.findChatHistory(me.getId(), otherUserId);
+
+        return messages.stream()
+                .map(this::mapToChatResponse)
+                .toList();
+    }
+
+    /* ================= UNREAD COUNT (FIXED) ================= */
+    @Override
+    public Long getUnreadMessageCount(String email) {
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        // ✅ FIXED METHOD CALL
+        return chatMessageRepository.countUnreadByRecipient(me.getId());
+    }
+
+    /* ================= MARK AS READ ================= */
+    @Override
+    @Transactional
+    public void markMessagesAsRead(String email, Long senderId) {
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        List<ChatMessage> unread =
+                chatMessageRepository.findByRecipient_IdAndSender_IdAndIsReadFalse(
+                        me.getId(), senderId
+                );
+
+        unread.forEach(m -> m.setRead(true));
+        chatMessageRepository.saveAll(unread);
+    }
+
+    /* ================= SYSTEM CHAT ================= */
     private void sendSystemChat(User sender, User recipient, String content) {
 
         ChatMessage message = ChatMessage.builder()
@@ -145,14 +173,12 @@ public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
 
         ChatResponse response = mapToChatResponse(saved);
 
-        // 👉 REAL CHAT STREAM
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
                 response
         );
 
-        // 👉 OPTIONAL: NOTIFICATION (BELL UI)
         NotificationMessage notification = new NotificationMessage();
         notification.setType("BOOKING_CHAT");
         notification.setContent(content);
@@ -165,7 +191,7 @@ public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
         );
     }
 
-    /* ================= CHAT NORMAL USER MESSAGE ================= */
+    /* ================= SEND MESSAGE ================= */
     @Override
     @Transactional
     public ChatResponse sendMessage(String senderEmail, ChatRequest request) {
@@ -196,23 +222,6 @@ public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
         );
 
         return response;
-    }
-
-    /* ================= READ CHAT ================= */
-    @Override
-    @Transactional
-    public void markMessagesAsRead(String email, Long senderId) {
-
-        User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        List<ChatMessage> unread =
-                chatMessageRepository.findByRecipient_IdAndSender_IdAndIsReadFalse(
-                        me.getId(), senderId
-                );
-
-        unread.forEach(m -> m.setRead(true));
-        chatMessageRepository.saveAll(unread);
     }
 
     /* ================= MAPPERS ================= */
@@ -250,7 +259,7 @@ public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
                 .build();
     }
 
-    /* ================= UNUSED LIST METHODS ================= */
+    /* ================= UNUSED ================= */
     @Override public List<BookingResponse> getBookingsByUserId(Long userId){return List.of();}
     @Override public List<BookingResponse> getBookingsByClassId(Long classId){return List.of();}
     @Override public List<BookingResponse> getBookingsByTutorId(Long tutorId){return List.of();}

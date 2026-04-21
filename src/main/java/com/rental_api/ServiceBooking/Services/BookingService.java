@@ -28,7 +28,7 @@ public interface BookingService {
     List<BookingResponse> getMyBookings();
 
     List<BookingResponse> getMyTutorBookings();
-
+Long getUnreadMessageCount(String email);
     Long getMyPendingBookingsCount();
 
     /* ================= CHAT SYSTEM ================= */

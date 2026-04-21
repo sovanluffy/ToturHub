@@ -19,7 +19,6 @@ public class ChatController {
     private final BookingService bookingService;
 
     /* ================= SEND MESSAGE ================= */
-
     @PostMapping("/send")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<ChatResponse> sendMessage(
@@ -33,7 +32,6 @@ public class ChatController {
     }
 
     /* ================= CHAT HISTORY ================= */
-
     @GetMapping("/history/{otherUserId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<ChatResponse>> getChatHistory(
@@ -47,7 +45,6 @@ public class ChatController {
     }
 
     /* ================= MARK AS READ ================= */
-
     @PutMapping("/read/{senderId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Void> markAsRead(
@@ -58,5 +55,17 @@ public class ChatController {
         bookingService.markMessagesAsRead(email, senderId);
 
         return ResponseEntity.ok().build();
+    }
+
+    /* ================= NEW: UNREAD COUNT (FIXED 404 ERROR) ================= */
+    @GetMapping("/unread-count")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<Long> getUnreadCount() {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return ResponseEntity.ok(
+                bookingService.getUnreadMessageCount(email)
+        );
     }
 }
