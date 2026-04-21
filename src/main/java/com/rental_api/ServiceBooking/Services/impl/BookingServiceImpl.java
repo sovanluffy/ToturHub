@@ -29,16 +29,17 @@ public class BookingServiceImpl implements BookingService {
     private final UserRepository userRepository;
     private final DayTimeSlotRepository dayTimeSlotRepository;
     private final NotificationRepository notificationRepository;
-    private final ChatMessageRepository chatMessageRepository; // NEW
+    private final ChatMessageRepository chatMessageRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     // ================= CHAT: SEND MESSAGE =================
     @Override
     @Transactional
     public ChatResponse sendMessage(String senderEmail, ChatRequest request) {
+
         User sender = userRepository.findByEmail(senderEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Sender not found"));
-        
+
         User recipient = userRepository.findById(request.getRecipientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
 
@@ -52,7 +53,6 @@ public class BookingServiceImpl implements BookingService {
         ChatMessage saved = chatMessageRepository.save(message);
         ChatResponse response = mapToChatResponse(saved);
 
-        // Real-time push to recipient's private queue
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
@@ -62,9 +62,10 @@ public class BookingServiceImpl implements BookingService {
         return response;
     }
 
-    // ================= CHAT: GET HISTORY =================
+    // ================= CHAT HISTORY =================
     @Override
     public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
+
         User me = userRepository.findByEmail(myEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -74,22 +75,23 @@ public class BookingServiceImpl implements BookingService {
                 .toList();
     }
 
-    // ================= CHAT: MARK AS SEEN =================
+    // ================= MARK READ =================
     @Override
     @Transactional
     public void markMessagesAsRead(String recipientEmail, Long senderId) {
+
         User me = userRepository.findByEmail(recipientEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        List<ChatMessage> unread = chatMessageRepository
-                .findByRecipient_IdAndSender_IdAndIsReadFalse(me.getId(), senderId);
+        List<ChatMessage> unread =
+                chatMessageRepository.findByRecipient_IdAndSender_IdAndIsReadFalse(me.getId(), senderId);
 
         if (!unread.isEmpty()) {
             unread.forEach(m -> m.setRead(true));
             chatMessageRepository.saveAll(unread);
 
-            // Notify the sender that the message was seen
             User sender = userRepository.findById(senderId).orElse(null);
+
             if (sender != null) {
                 messagingTemplate.convertAndSendToUser(
                         sender.getEmail(),
@@ -100,11 +102,13 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // ================= CORE BOOKING LOGIC =================
+    // ================= BOOK CLASS =================
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
+
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         User student = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -124,6 +128,7 @@ public class BookingServiceImpl implements BookingService {
 
         int booked = slot.getBookedCount() == null ? 0 : slot.getBookedCount();
         int max = slot.getMaxStudents() == null ? 10 : slot.getMaxStudents();
+
         if (booked >= max) throw new IllegalStateException("Full slot!");
 
         slot.setBookedCount(booked + 1);
@@ -144,29 +149,85 @@ public class BookingServiceImpl implements BookingService {
                 openClass.getTutor().getUser().getEmail(),
                 "BOOKING_REQUEST",
                 student.getFullname() + " requested " + openClass.getTitle(),
-                saved.getId(), openClass.getId(), student, openClass, slot, request.getTelegram()
+                saved.getId(),
+                openClass.getId(),
+                student,
+                openClass,
+                slot,
+                request.getTelegram()
         );
 
         return mapToResponse(saved);
     }
 
+    // ================= CONFIRM BOOKING + CHAT =================
     @Override
     @Transactional
     public BookingResponse confirmBooking(Long bookingId) {
-        BookingClass booking = bookingRepository.findById(bookingId).orElseThrow();
+
+        BookingClass booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
         booking.setStatus(BookingStatus.CONFIRMED);
-        return mapToResponse(bookingRepository.save(booking));
+        BookingClass saved = bookingRepository.save(booking);
+
+        User tutor = booking.getTutor().getUser();
+        User student = booking.getUser();
+
+        sendSystemChatMessage(
+                tutor,
+                student,
+                "🎉 Your booking for '" + booking.getOpenClass().getTitle() + "' has been CONFIRMED."
+        );
+
+        return mapToResponse(saved);
     }
 
+    // ================= REJECT BOOKING + CHAT =================
     @Override
     @Transactional
     public BookingResponse rejectBooking(Long bookingId) {
-        BookingClass booking = bookingRepository.findById(bookingId).orElseThrow();
+
+        BookingClass booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
         booking.setStatus(BookingStatus.REJECTED);
-        return mapToResponse(bookingRepository.save(booking));
+        BookingClass saved = bookingRepository.save(booking);
+
+        User tutor = booking.getTutor().getUser();
+        User student = booking.getUser();
+
+        sendSystemChatMessage(
+                tutor,
+                student,
+                "❌ Your booking for '" + booking.getOpenClass().getTitle() + "' was REJECTED."
+        );
+
+        return mapToResponse(saved);
     }
 
-    // ================= GETTERS & COUNTS =================
+    // ================= SYSTEM CHAT MESSAGE =================
+    private void sendSystemChatMessage(User sender, User recipient, String content) {
+
+        ChatMessage message = ChatMessage.builder()
+                .sender(sender)
+                .recipient(recipient)
+                .content(content)
+                .isRead(false)
+                .build();
+
+        ChatMessage saved = chatMessageRepository.save(message);
+
+        ChatResponse response = mapToChatResponse(saved);
+
+        messagingTemplate.convertAndSendToUser(
+                recipient.getEmail(),
+                "/queue/messages",
+                response
+        );
+    }
+
+    // ================= GETTERS =================
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
         return bookingRepository.findByUser_Id(userId).stream().map(this::mapToResponse).toList();
@@ -214,7 +275,6 @@ public class BookingServiceImpl implements BookingService {
         res.setContent(m.getContent());
         res.setTimestamp(m.getTimestamp());
         res.setRead(m.isRead());
-        // ONLINE CHECK
         res.setOnline(WebSocketEventListener.onlineUsers.contains(m.getRecipient().getEmail()));
         return res;
     }
@@ -240,18 +300,45 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
-    // ================= NOTIFICATION HELPER =================
-    private void sendNotification(String email, String type, String content, Long bId, Long cId, User student, OpenClass o, DayTimeSlot s, String tel) {
-        Notification n = Notification.builder().recipientEmail(email).type(type).content(content).bookingId(bId).classId(cId).isRead(false).build();
+    // ================= NOTIFICATION =================
+    private void sendNotification(String email, String type, String content,
+                                  Long bId, Long cId,
+                                  User student, OpenClass o,
+                                  DayTimeSlot s, String tel) {
+
+        Notification n = Notification.builder()
+                .recipientEmail(email)
+                .type(type)
+                .content(content)
+                .bookingId(bId)
+                .classId(cId)
+                .isRead(false)
+                .build();
+
         notificationRepository.save(n);
+
         NotificationMessage msg = new NotificationMessage();
-        msg.setType(type); msg.setContent(content); msg.setBookingId(bId); msg.setClassId(cId);
-        msg.setUserId(student.getId()); msg.setFullname(student.getFullname()); msg.setEmail(student.getEmail());
-        msg.setPhone(student.getPhone()); msg.setAvatarUrl(student.getAvatarUrl());
+        msg.setType(type);
+        msg.setContent(content);
+        msg.setBookingId(bId);
+        msg.setClassId(cId);
+        msg.setUserId(student.getId());
+        msg.setFullname(student.getFullname());
+        msg.setEmail(student.getEmail());
+        msg.setPhone(student.getPhone());
+        msg.setAvatarUrl(student.getAvatarUrl());
         msg.setTutorId(o.getTutor() != null ? o.getTutor().getId() : null);
-        msg.setStudentName(student.getFullname()); msg.setClassTitle(o.getTitle());
-        msg.setDay(s.getDay().toString()); msg.setStartTime(s.getStartTime().toString()); msg.setEndTime(s.getEndTime().toString());
+        msg.setStudentName(student.getFullname());
+        msg.setClassTitle(o.getTitle());
+        msg.setDay(s.getDay().toString());
+        msg.setStartTime(s.getStartTime().toString());
+        msg.setEndTime(s.getEndTime().toString());
         msg.setTelegram(tel);
-        messagingTemplate.convertAndSendToUser(email, "/queue/notifications", msg);
+
+        messagingTemplate.convertAndSendToUser(
+                email,
+                "/queue/notifications",
+                msg
+        );
     }
 }
