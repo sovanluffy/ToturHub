@@ -1,10 +1,13 @@
 package com.rental_api.ServiceBooking.Entity;
 
+import com.rental_api.ServiceBooking.Entity.Enum.MessageType;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "chat_message")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,15 +25,13 @@ public class ChatMessage {
     @ManyToOne
     private User recipient;
 
-    @Column(nullable = false)
     private String content;
 
     private boolean isRead;
 
     private LocalDateTime timestamp;
 
-    @PrePersist
-    public void prePersist() {
-        this.timestamp = LocalDateTime.now();
-    }
+    // 🔥 ADD THIS (IMPORTANT)
+    @Enumerated(EnumType.STRING)
+    private MessageType type;
 }

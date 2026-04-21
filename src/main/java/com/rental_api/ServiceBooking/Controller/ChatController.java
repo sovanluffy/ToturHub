@@ -4,10 +4,9 @@ import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -17,40 +16,36 @@ public class ChatController {
 
     private final BookingService bookingService;
 
-    // ================= SEND MESSAGE =================
+    /* ================= SEND MESSAGE ================= */
     @PostMapping("/send")
-    public ResponseEntity<ChatResponse> sendMessage(
-            Authentication authentication,
+    public ChatResponse sendMessage(
+            Principal principal,
             @RequestBody ChatRequest request
     ) {
-        String senderEmail = authentication.getName();
-        return ResponseEntity.ok(
-                bookingService.sendMessage(senderEmail, request)
-        );
+        return bookingService.sendMessage(principal.getName(), request);
     }
 
-    // ================= CHAT HISTORY =================
+    /* ================= CHAT HISTORY ================= */
     @GetMapping("/history/{otherUserId}")
-    public ResponseEntity<List<ChatResponse>> getHistory(
-            Authentication authentication,
+    public List<ChatResponse> getChatHistory(
+            Principal principal,
             @PathVariable Long otherUserId
     ) {
-        String myEmail = authentication.getName();
-        return ResponseEntity.ok(
-                bookingService.getChatHistory(myEmail, otherUserId)
+        return bookingService.getChatHistory(
+                principal.getName(),
+                otherUserId
         );
     }
 
-    // ================= MARK AS READ (FIXED) =================
+    /* ================= MARK AS READ ================= */
     @PutMapping("/read/{senderId}")
-    public ResponseEntity<Void> markAsRead(
-            Authentication authentication,
+    public void markAsRead(
+            Principal principal,
             @PathVariable Long senderId
     ) {
-        String recipientEmail = authentication.getName();
-
-        bookingService.markMessagesAsRead(recipientEmail, senderId);
-
-        return ResponseEntity.ok().build();
+        bookingService.markMessagesAsRead(
+                principal.getName(),
+                senderId
+        );
     }
 }

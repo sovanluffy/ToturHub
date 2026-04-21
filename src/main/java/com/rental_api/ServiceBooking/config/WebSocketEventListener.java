@@ -5,7 +5,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.messaging.SessionConnectEvent;
+import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.time.LocalDateTime;
@@ -19,93 +19,94 @@ public class WebSocketEventListener {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    // email -> sessionId (multi-tab support)
+    // email -> sessionId
     private static final Map<String, String> userSessionMap = new ConcurrentHashMap<>();
 
     // online users
     public static final Set<String> onlineUsers = ConcurrentHashMap.newKeySet();
 
-    // optional: last seen tracking
+    // last seen
     private static final Map<String, LocalDateTime> lastSeenMap = new ConcurrentHashMap<>();
 
-    // ================= CONNECT =================
+    /* ================= CONNECT ================= */
     @EventListener
-    public void handleWebSocketConnectListener(SessionConnectEvent event) {
+    public void handleWebSocketConnectListener(SessionConnectedEvent event) {
 
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
 
-        if (accessor.getUser() != null) {
+        if (accessor.getUser() == null) return;
 
-            String email = accessor.getUser().getName();
-            String sessionId = accessor.getSessionId();
+        String email = accessor.getUser().getName();
+        String sessionId = accessor.getSessionId();
 
-            userSessionMap.put(email, sessionId);
-            onlineUsers.add(email);
+        if (email == null || sessionId == null) return;
 
-            PresenceMessage msg = new PresenceMessage(
-                    email,
-                    "ONLINE",
-                    null
-            );
+        userSessionMap.put(email, sessionId);
+        onlineUsers.add(email);
 
-            messagingTemplate.convertAndSend("/topic/presence", msg);
+        PresenceMessage msg = new PresenceMessage(
+                email,
+                Status.ONLINE,
+                null
+        );
 
-            System.out.println("User Connected: " + email);
-        }
+        messagingTemplate.convertAndSend("/topic/presence", msg);
+
+        System.out.println("CONNECTED: " + email);
     }
 
-    // ================= DISCONNECT =================
+    /* ================= DISCONNECT ================= */
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
 
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-
         String sessionId = accessor.getSessionId();
 
-        String emailToRemove = null;
+        String email = userSessionMap.entrySet()
+                .stream()
+                .filter(e -> e.getValue().equals(sessionId))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
 
-        for (Map.Entry<String, String> entry : userSessionMap.entrySet()) {
-            if (entry.getValue().equals(sessionId)) {
-                emailToRemove = entry.getKey();
-                break;
-            }
-        }
+        if (email == null) return;
 
-        if (emailToRemove != null) {
+        userSessionMap.remove(email);
+        onlineUsers.remove(email);
 
-            userSessionMap.remove(emailToRemove);
-            onlineUsers.remove(emailToRemove);
+        LocalDateTime lastSeen = LocalDateTime.now();
+        lastSeenMap.put(email, lastSeen);
 
-            // save last seen
-            lastSeenMap.put(emailToRemove, LocalDateTime.now());
+        PresenceMessage msg = new PresenceMessage(
+                email,
+                Status.OFFLINE,
+                lastSeen
+        );
 
-            PresenceMessage msg = new PresenceMessage(
-                    emailToRemove,
-                    "OFFLINE",
-                    lastSeenMap.get(emailToRemove)
-            );
+        messagingTemplate.convertAndSend("/topic/presence", msg);
 
-            messagingTemplate.convertAndSend("/topic/presence", msg);
-
-            System.out.println("User Disconnected: " + emailToRemove);
-        }
+        System.out.println("DISCONNECTED: " + email);
     }
 
-    // ================= PRESENCE DTO =================
+    /* ================= PRESENCE DTO ================= */
     public static class PresenceMessage {
-
         private String email;
-        private String status;
+        private Status status;
         private LocalDateTime lastSeen;
 
-        public PresenceMessage(String email, String status, LocalDateTime lastSeen) {
+        public PresenceMessage(String email, Status status, LocalDateTime lastSeen) {
             this.email = email;
             this.status = status;
             this.lastSeen = lastSeen;
         }
 
         public String getEmail() { return email; }
-        public String getStatus() { return status; }
+        public Status getStatus() { return status; }
         public LocalDateTime getLastSeen() { return lastSeen; }
+    }
+
+    public enum Status {
+        ONLINE,
+        OFFLINE
     }
 }

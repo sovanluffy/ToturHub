@@ -1,13 +1,12 @@
 package com.rental_api.ServiceBooking.Services.impl;
 
-import com.rental_api.ServiceBooking.config.WebSocketEventListener;
 import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
-import com.rental_api.ServiceBooking.Dto.NotificationMessage;
 import com.rental_api.ServiceBooking.Dto.Request.BookingClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.BookingResponse;
 import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
+import com.rental_api.ServiceBooking.Entity.Enum.MessageType;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.BookingService;
@@ -25,13 +24,126 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
 
-    private final OpenClassRepository openClassRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+    private final OpenClassRepository openClassRepository;
     private final DayTimeSlotRepository dayTimeSlotRepository;
-    private final NotificationRepository notificationRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final SimpMessagingTemplate messagingTemplate;
+
+    /* ================= BOOKING ================= */
+
+    @Override
+    @Transactional
+    public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User student = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        OpenClass openClass = openClassRepository.findById(openClassId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
+
+        DayTimeSlot slot = dayTimeSlotRepository.findById(request.getDayTimeSlotId())
+                .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
+
+        BookingClass booking = BookingClass.builder()
+                .user(student)
+                .tutor(openClass.getTutor())
+                .openClass(openClass)
+                .schedule(slot)
+                .telegram(request.getTelegram())
+                .note(request.getNote())
+                .status(BookingStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        BookingClass saved = bookingRepository.save(booking);
+
+        return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse confirmBooking(Long bookingId) {
+
+        BookingClass booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
+        booking.setStatus(BookingStatus.CONFIRMED);
+        BookingClass saved = bookingRepository.save(booking);
+
+        sendSystemMessage(
+                booking.getTutor().getUser(),
+                booking.getUser(),
+                "🎉 Your booking for '" + booking.getOpenClass().getTitle() + "' is CONFIRMED"
+        );
+
+        return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse rejectBooking(Long bookingId) {
+
+        BookingClass booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
+        booking.setStatus(BookingStatus.REJECTED);
+        BookingClass saved = bookingRepository.save(booking);
+
+        sendSystemMessage(
+                booking.getTutor().getUser(),
+                booking.getUser(),
+                "❌ Your booking for '" + booking.getOpenClass().getTitle() + "' is REJECTED"
+        );
+
+        return mapToResponse(saved);
+    }
+
+    /* ================= BOOKINGS LIST ================= */
+
+    @Override
+    public List<BookingResponse> getBookingsByUserId(Long userId) {
+        return bookingRepository.findByUser_Id(userId)
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public List<BookingResponse> getBookingsByClassId(Long classId) {
+        return bookingRepository.findByOpenClass_Id(classId)
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
+        return bookingRepository.findByTutor_Id(tutorId)
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public List<BookingResponse> getMyBookings() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email).orElseThrow();
+        return bookingRepository.findByUser_Id(user.getId())
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public List<BookingResponse> getMyTutorBookings() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User tutor = userRepository.findByEmail(email).orElseThrow();
+        return bookingRepository.findByTutor_Id(tutor.getId())
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public Long getMyPendingBookingsCount() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User tutor = userRepository.findByEmail(email).orElseThrow();
+        return bookingRepository.countByTutor_IdAndStatus(tutor.getId(), BookingStatus.PENDING);
+    }
 
     /* ================= CHAT ================= */
 
@@ -51,6 +163,7 @@ public class BookingServiceImpl implements BookingService {
                 .content(request.getContent())
                 .isRead(false)
                 .timestamp(LocalDateTime.now())
+                .type(MessageType.USER)
                 .build();
 
         ChatMessage saved = chatMessageRepository.save(message);
@@ -92,149 +205,11 @@ public class BookingServiceImpl implements BookingService {
 
         unread.forEach(m -> m.setRead(true));
         chatMessageRepository.saveAll(unread);
-
-        User sender = userRepository.findById(senderId).orElse(null);
-
-        if (sender != null) {
-            messagingTemplate.convertAndSendToUser(
-                    sender.getEmail(),
-                    "/queue/seen-notifications",
-                    me.getId()
-            );
-        }
     }
 
-    /* ================= BOOKINGS ================= */
+    /* ================= SYSTEM CHAT MESSAGE ================= */
 
-    @Override
-    @Transactional
-    public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
-
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User student = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        OpenClass openClass = openClassRepository.findById(openClassId)
-                .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
-
-        DayTimeSlot slot = dayTimeSlotRepository.findByIdForUpdate(request.getDayTimeSlotId())
-                .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
-
-        if (bookingRepository.existsByUser_IdAndSchedule_Id(student.getId(), slot.getId())) {
-            throw new IllegalStateException("Already booked!");
-        }
-
-        int booked = slot.getBookedCount() == null ? 0 : slot.getBookedCount();
-        int max = slot.getMaxStudents() == null ? 10 : slot.getMaxStudents();
-
-        if (booked >= max) throw new IllegalStateException("Full slot!");
-
-        slot.setBookedCount(booked + 1);
-
-        BookingClass booking = BookingClass.builder()
-                .user(student)
-                .tutor(openClass.getTutor())
-                .openClass(openClass)
-                .schedule(slot)
-                .telegram(request.getTelegram())
-                .note(request.getNote())
-                .status(BookingStatus.PENDING)
-                .build();
-
-        BookingClass saved = bookingRepository.save(booking);
-
-        sendNotification(
-                openClass.getTutor().getUser().getEmail(),
-                "BOOKING_REQUEST",
-                student.getFullname() + " requested " + openClass.getTitle(),
-                saved.getId(),
-                openClass.getId(),
-                student
-        );
-
-        return mapToResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public BookingResponse confirmBooking(Long bookingId) {
-
-        BookingClass booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-
-        booking.setStatus(BookingStatus.CONFIRMED);
-        BookingClass saved = bookingRepository.save(booking);
-
-        sendSystemChatMessage(
-                booking.getTutor().getUser(),
-                booking.getUser(),
-                "🎉 Your booking for '" + booking.getOpenClass().getTitle() + "' has been CONFIRMED."
-        );
-
-        return mapToResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public BookingResponse rejectBooking(Long bookingId) {
-
-        BookingClass booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-
-        booking.setStatus(BookingStatus.REJECTED);
-        BookingClass saved = bookingRepository.save(booking);
-
-        sendSystemChatMessage(
-                booking.getTutor().getUser(),
-                booking.getUser(),
-                "❌ Your booking for '" + booking.getOpenClass().getTitle() + "' was REJECTED."
-        );
-
-        return mapToResponse(saved);
-    }
-
-    /* ================= GETTERS ================= */
-
-    @Override
-    public List<BookingResponse> getBookingsByUserId(Long userId) {
-        return bookingRepository.findByUser_Id(userId).stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getBookingsByClassId(Long classId) {
-        return bookingRepository.findByOpenClass_Id(classId).stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
-        return bookingRepository.findByTutor_Id(tutorId).stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getMyBookings() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByEmail(email).orElseThrow();
-        return bookingRepository.findByUser_Id(user.getId()).stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getMyTutorBookings() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User tutor = userRepository.findByEmail(email).orElseThrow();
-        return bookingRepository.findByTutor_Id(tutor.getId()).stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public Long getMyPendingBookingsCount() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User tutor = userRepository.findByEmail(email).orElseThrow();
-        return bookingRepository.countByTutor_IdAndStatus(tutor.getId(), BookingStatus.PENDING);
-    }
-
-    /* ================= SYSTEM CHAT MESSAGE (FIXED) ================= */
-
-    private void sendSystemChatMessage(User sender, User recipient, String content) {
+    private void sendSystemMessage(User sender, User recipient, String content) {
 
         ChatMessage message = ChatMessage.builder()
                 .sender(sender)
@@ -242,6 +217,7 @@ public class BookingServiceImpl implements BookingService {
                 .content(content)
                 .isRead(false)
                 .timestamp(LocalDateTime.now())
+                .type(MessageType.SYSTEM)
                 .build();
 
         ChatMessage saved = chatMessageRepository.save(message);
@@ -258,6 +234,7 @@ public class BookingServiceImpl implements BookingService {
     /* ================= MAPPERS ================= */
 
     private ChatResponse mapToChatResponse(ChatMessage m) {
+
         ChatResponse res = new ChatResponse();
         res.setId(m.getId());
         res.setSenderId(m.getSender().getId());
@@ -265,11 +242,12 @@ public class BookingServiceImpl implements BookingService {
         res.setContent(m.getContent());
         res.setTimestamp(m.getTimestamp());
         res.setRead(m.isRead());
-        res.setOnline(WebSocketEventListener.onlineUsers.contains(m.getRecipient().getEmail()));
+        res.setMessageType(m.getType().name());
         return res;
     }
 
     private BookingResponse mapToResponse(BookingClass b) {
+
         return BookingResponse.builder()
                 .bookingId(b.getId())
                 .userId(b.getUser().getId())
@@ -288,36 +266,5 @@ public class BookingServiceImpl implements BookingService {
                 .telegram(b.getTelegram())
                 .createdAt(b.getCreatedAt())
                 .build();
-    }
-
-    /* ================= NOTIFICATION ================= */
-
-    private void sendNotification(String email, String type, String content,
-                                  Long bId, Long cId, User student) {
-
-        Notification n = Notification.builder()
-                .recipientEmail(email)
-                .type(type)
-                .content(content)
-                .bookingId(bId)
-                .classId(cId)
-                .isRead(false)
-                .build();
-
-        notificationRepository.save(n);
-
-        NotificationMessage msg = new NotificationMessage();
-        msg.setType(type);
-        msg.setContent(content);
-        msg.setBookingId(bId);
-        msg.setClassId(cId);
-        msg.setUserId(student.getId());
-        msg.setFullname(student.getFullname());
-
-        messagingTemplate.convertAndSendToUser(
-                email,
-                "/queue/notifications",
-                msg
-        );
     }
 }

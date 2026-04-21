@@ -81,7 +81,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= ACTIONS ================= */
+    /* ================= ACTIONS (🔥 CHAT INTEGRATED) ================= */
 
     @PatchMapping("/confirm/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")

@@ -1,7 +1,6 @@
 package com.rental_api.ServiceBooking.Entity;
 
-import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
-import jakarta.persistence.*;
+import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
