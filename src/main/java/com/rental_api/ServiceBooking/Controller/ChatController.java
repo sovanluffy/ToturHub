@@ -4,9 +4,11 @@ import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -17,35 +19,44 @@ public class ChatController {
     private final BookingService bookingService;
 
     /* ================= SEND MESSAGE ================= */
+
     @PostMapping("/send")
-    public ChatResponse sendMessage(
-            Principal principal,
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<ChatResponse> sendMessage(
             @RequestBody ChatRequest request
     ) {
-        return bookingService.sendMessage(principal.getName(), request);
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return ResponseEntity.ok(
+                bookingService.sendMessage(email, request)
+        );
     }
 
     /* ================= CHAT HISTORY ================= */
+
     @GetMapping("/history/{otherUserId}")
-    public List<ChatResponse> getChatHistory(
-            Principal principal,
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<ChatResponse>> getChatHistory(
             @PathVariable Long otherUserId
     ) {
-        return bookingService.getChatHistory(
-                principal.getName(),
-                otherUserId
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return ResponseEntity.ok(
+                bookingService.getChatHistory(email, otherUserId)
         );
     }
 
     /* ================= MARK AS READ ================= */
+
     @PutMapping("/read/{senderId}")
-    public void markAsRead(
-            Principal principal,
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<Void> markAsRead(
             @PathVariable Long senderId
     ) {
-        bookingService.markMessagesAsRead(
-                principal.getName(),
-                senderId
-        );
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        bookingService.markMessagesAsRead(email, senderId);
+
+        return ResponseEntity.ok().build();
     }
 }

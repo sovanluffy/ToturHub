@@ -4,10 +4,12 @@ import com.rental_api.ServiceBooking.Entity.Notification;
 import com.rental_api.ServiceBooking.Repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -16,36 +18,35 @@ import java.util.List;
 public class NotificationController {
 
     private final NotificationRepository notificationRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    // ================= GET MY NOTIFICATIONS =================
+    /* ================= GET NOTIFICATIONS ================= */
     @GetMapping("/my-notifications")
-    @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('TUTOR','STUDENT')")
     public ResponseEntity<List<Notification>> getMyNotifications() {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        List<Notification> notifications =
-                notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email);
-
-        return ResponseEntity.ok(notifications);
+        return ResponseEntity.ok(
+                notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email)
+        );
     }
 
-    // ================= UNREAD COUNT =================
+    /* ================= UNREAD COUNT ================= */
     @GetMapping("/unread-count")
-    @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('TUTOR','STUDENT')")
     public ResponseEntity<Long> getUnreadCount() {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Long count = notificationRepository
-                .countByRecipientEmailAndIsReadFalse(email);
-
-        return ResponseEntity.ok(count);
+        return ResponseEntity.ok(
+                notificationRepository.countByRecipientEmailAndIsReadFalse(email)
+        );
     }
 
-    // ================= MARK ONE AS READ =================
+    /* ================= MARK AS READ ================= */
     @PatchMapping("/read/{id}")
-    @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('TUTOR','STUDENT')")
     public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -53,7 +54,6 @@ public class NotificationController {
         Notification notification = notificationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
 
-        // 🔒 Security check (user can only update their own notification)
         if (!notification.getRecipientEmail().equals(email)) {
             return ResponseEntity.status(403).build();
         }
@@ -64,27 +64,26 @@ public class NotificationController {
         return ResponseEntity.ok().build();
     }
 
-    // ================= MARK ALL AS READ =================
+    /* ================= MARK ALL AS READ ================= */
     @PatchMapping("/read-all")
-    @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('TUTOR','STUDENT')")
     public ResponseEntity<Void> markAllAsRead() {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        List<Notification> notifications =
+        List<Notification> list =
                 notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email);
 
-        notifications.forEach(n -> n.setRead(true));
-
-        notificationRepository.saveAll(notifications);
+        list.forEach(n -> n.setRead(true));
+        notificationRepository.saveAll(list);
 
         return ResponseEntity.ok().build();
     }
 
-    // ================= DELETE NOTIFICATION =================
+    /* ================= DELETE ================= */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TUTOR', 'STUDENT')")
-    public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
+    @PreAuthorize("hasAnyRole('TUTOR','STUDENT')")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -98,5 +97,27 @@ public class NotificationController {
         notificationRepository.delete(notification);
 
         return ResponseEntity.ok().build();
+    }
+
+    /* ================= REAL-TIME PUSH (IMPORTANT FOR CHAT FLOW) ================= */
+    public void pushNotification(String email, String type, String content, Long bookingId) {
+
+        Notification notification = Notification.builder()
+                .recipientEmail(email)
+                .type(type)
+                .content(content)
+                .bookingId(bookingId)
+                .isRead(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        notificationRepository.save(notification);
+
+        // 🔥 WebSocket push to frontend
+        messagingTemplate.convertAndSendToUser(
+                email,
+                "/queue/notifications",
+                notification
+        );
     }
 }
