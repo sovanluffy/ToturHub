@@ -74,6 +74,10 @@ public class SecurityConfiguration {
                                                                 "/webjars/**")
                                                 .permitAll()
 
+                                                // 💬 MESSENGER CHAT APIs (NEW)
+                // We allow any authenticated user (Student/Tutor/Admin) to use chat
+                .requestMatchers("/api/v1/chat/**").authenticated()
+
                                                 // 🔓 PUBLIC GET APIs
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
