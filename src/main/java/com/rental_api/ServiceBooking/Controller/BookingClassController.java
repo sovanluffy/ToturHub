@@ -18,8 +18,7 @@ public class BookingClassController {
 
     private final BookingService bookingService;
 
-    // ================= STUDENT =================
-
+    // ================= STUDENT BOOK CLASS =================
     @PostMapping("/book-class/{openClassId}")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<BookingResponse> bookClass(
@@ -31,6 +30,7 @@ public class BookingClassController {
         );
     }
 
+    // ================= STUDENT (ADMIN VIEW) =================
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
@@ -41,8 +41,7 @@ public class BookingClassController {
         );
     }
 
-    // ================= STUDENT (ME - RECOMMENDED) =================
-
+    // ================= STUDENT (ME) =================
     @GetMapping("/user/me")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<List<BookingResponse>> getMyBookings() {
@@ -52,8 +51,7 @@ public class BookingClassController {
         );
     }
 
-    // ================= TUTOR (OLD - OPTIONAL) =================
-
+    // ================= TUTOR (ADMIN VIEW) =================
     @GetMapping("/tutor/{tutorId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getBookingsByTutorId(
@@ -64,8 +62,7 @@ public class BookingClassController {
         );
     }
 
-    // ================= TUTOR (ME - RECOMMENDED) =================
-
+    // ================= TUTOR (ME) =================
     @GetMapping("/tutor/me")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
@@ -75,8 +72,7 @@ public class BookingClassController {
         );
     }
 
-    // ================= CLASS =================
-
+    // ================= CLASS BOOKINGS =================
     @GetMapping("/class/{openClassId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
@@ -106,6 +102,16 @@ public class BookingClassController {
 
         return ResponseEntity.ok(
                 bookingService.rejectBooking(bookingId)
+        );
+    }
+
+    // ================= 🔥 NEW: SIDEBAR BADGE =================
+    @GetMapping("/tutor/me/pending-count")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<Long> getPendingCount() {
+
+        return ResponseEntity.ok(
+                bookingService.getMyPendingBookingsCount()
         );
     }
 }

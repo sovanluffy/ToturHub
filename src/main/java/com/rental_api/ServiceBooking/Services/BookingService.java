@@ -7,22 +7,24 @@ import java.util.List;
 
 public interface BookingService {
 
-    // ================= CORE BOOKING =================
+    // ================= CORE =================
     BookingResponse bookClass(Long openClassId, BookingClassRequest request);
 
     BookingResponse confirmBooking(Long bookingId);
 
     BookingResponse rejectBooking(Long bookingId);
 
-    // ================= BASIC GETTERS =================
+    // ================= GETTERS =================
     List<BookingResponse> getBookingsByUserId(Long userId);
 
     List<BookingResponse> getBookingsByClassId(Long classId);
 
     List<BookingResponse> getBookingsByTutorId(Long tutorId);
 
-    // ================= JWT "ME" VERSION (IMPORTANT FIX) =================
+    // ================= CURRENT USER =================
     List<BookingResponse> getMyBookings();
 
     List<BookingResponse> getMyTutorBookings();
+
+    Long getMyPendingBookingsCount();
 }

@@ -92,7 +92,11 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalStateException("Schedule does not belong to this class");
         }
 
-        boolean exists = bookingRepository.existsByUserIdAndScheduleId(student.getId(), slot.getId());
+        boolean exists = bookingRepository.existsByUser_IdAndSchedule_Id(
+                student.getId(),
+                slot.getId()
+        );
+
         if (exists) {
             throw new IllegalStateException("You already booked this slot!");
         }
@@ -199,34 +203,34 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(updated);
     }
 
-    // ================= USER BOOKINGS =================
+    // ================= REQUIRED METHODS (FIX ERROR) =================
+
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
-        return bookingRepository.findByUserId(userId)
+        return bookingRepository.findByUser_Id(userId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // ================= CLASS BOOKINGS =================
     @Override
     public List<BookingResponse> getBookingsByClassId(Long classId) {
-        return bookingRepository.findByOpenClassId(classId)
+        return bookingRepository.findByOpenClass_Id(classId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // ================= TUTOR BOOKINGS =================
     @Override
     public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
-        return bookingRepository.findByTutorId(tutorId)
+        return bookingRepository.findByTutor_Id(tutorId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // ================= STUDENT (ME) =================
+    // ================= CURRENT USER METHODS =================
+
     @Override
     public List<BookingResponse> getMyBookings() {
 
@@ -235,13 +239,12 @@ public class BookingServiceImpl implements BookingService {
         User student = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        return bookingRepository.findByUserId(student.getId())
+        return bookingRepository.findByUser_Id(student.getId())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // ================= TUTOR (ME) =================
     @Override
     public List<BookingResponse> getMyTutorBookings() {
 
@@ -250,10 +253,24 @@ public class BookingServiceImpl implements BookingService {
         User tutor = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
 
-        return bookingRepository.findByTutorId(tutor.getId())
+        return bookingRepository.findByTutor_Id(tutor.getId())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
+    }
+
+    @Override
+    public Long getMyPendingBookingsCount() {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User tutor = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
+
+        return bookingRepository.countByTutor_IdAndStatus(
+                tutor.getId(),
+                BookingStatus.PENDING
+        );
     }
 
     // ================= MAPPER =================
