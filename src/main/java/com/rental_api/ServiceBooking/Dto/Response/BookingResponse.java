@@ -13,22 +13,27 @@ import java.time.LocalTime;
 @NoArgsConstructor
 public class BookingResponse {
 
+    // ================= BOOKING =================
     private Long bookingId;
 
-    // ✅ USER
+    // ================= USER =================
     private Long userId;
+    private String studentName;
+    private String studentEmail;
+    private String studentPhone;
+    private String studentAvatar;
 
-    // ✅ CLASS
+    // ================= CLASS =================
     private Long classId;
     private String classTitle;
 
-    // ✅ SCHEDULE
+    // ================= SCHEDULE =================
     private Long scheduleId;
     private DayOfWeek day;
     private LocalTime startTime;
     private LocalTime endTime;
 
-    // ✅ BOOKING INFO
+    // ================= BOOKING INFO =================
     private BookingStatus status;
     private String note;
     private String telegram;

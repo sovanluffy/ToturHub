@@ -3,7 +3,6 @@ package com.rental_api.ServiceBooking.Controller;
 import com.rental_api.ServiceBooking.Dto.Request.BookingClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.BookingResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -62,7 +61,7 @@ public class BookingClassController {
         );
     }
 
-    // ================= TUTOR (ME) =================
+    // ================= TUTOR (ME - SAFE VERSION) =================
     @GetMapping("/tutor/me")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
@@ -84,7 +83,6 @@ public class BookingClassController {
     }
 
     // ================= ACTIONS =================
-
     @PatchMapping("/confirm/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> confirmBooking(
@@ -105,7 +103,7 @@ public class BookingClassController {
         );
     }
 
-    // ================= 🔥 NEW: SIDEBAR BADGE =================
+    // ================= 🔥 NOTIFICATION BADGE =================
     @GetMapping("/tutor/me/pending-count")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<Long> getPendingCount() {

@@ -21,9 +21,10 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
     // ================= TUTOR =================
     List<BookingClass> findByTutor_Id(Long tutorId);
 
+    // 🔥 COUNT PENDING BOOKINGS (IMPORTANT FOR BADGE)
     long countByTutor_IdAndStatus(Long tutorId, BookingStatus status);
 
-    // (Optional alternative JPQL if needed)
+    // Optional JPQL (backup)
     @Query("SELECT b FROM BookingClass b WHERE b.tutor.id = :tutorId")
     List<BookingClass> findTutorBookings(@Param("tutorId") Long tutorId);
 }
