@@ -26,10 +26,6 @@ public class Review {
     private Integer rating;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "class_id")
-    private OpenClass openClass;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id")
     private Tutor tutor;
 
