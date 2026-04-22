@@ -18,51 +18,59 @@ public class ChatController {
 
     private final BookingService bookingService;
 
-    /* ================= SEND MESSAGE ================= */
+    // ================= SEND MESSAGE =================
     @PostMapping("/send")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<ChatResponse> sendMessage(
             @RequestBody ChatRequest request
     ) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
 
         return ResponseEntity.ok(
                 bookingService.sendMessage(email, request)
         );
     }
 
-    /* ================= CHAT HISTORY ================= */
+    // ================= CHAT HISTORY =================
     @GetMapping("/history/{otherUserId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<ChatResponse>> getChatHistory(
             @PathVariable Long otherUserId
     ) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
 
         return ResponseEntity.ok(
                 bookingService.getChatHistory(email, otherUserId)
         );
     }
 
-    /* ================= MARK AS READ ================= */
+    // ================= MARK AS READ =================
     @PutMapping("/read/{senderId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Void> markAsRead(
             @PathVariable Long senderId
     ) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
 
         bookingService.markMessagesAsRead(email, senderId);
 
         return ResponseEntity.ok().build();
     }
 
-    /* ================= NEW: UNREAD COUNT (FIXED 404 ERROR) ================= */
+    // ================= UNREAD COUNT =================
     @GetMapping("/unread-count")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Long> getUnreadCount() {
 
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
 
         return ResponseEntity.ok(
                 bookingService.getUnreadMessageCount(email)

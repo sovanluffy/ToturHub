@@ -45,13 +45,21 @@ public class User implements UserDetails {
         ACTIVE, PENDING, REJECTED, INACTIVE, DELETED
     }
 
+    // ================= ROLES =================
     @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
-    // ================= SECURITY =================
+    // ================= 🔥 FIX: USER ↔ TUTOR =================
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY)
+    private Tutor tutor;
 
+    // ================= SECURITY =================
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roles.stream()
@@ -59,7 +67,6 @@ public class User implements UserDetails {
                 .collect(Collectors.toSet());
     }
 
-    // 🔥 EMAIL IS NOW LOGIN IDENTIFIER
     @Override
     public String getUsername() {
         return this.email;

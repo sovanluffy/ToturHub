@@ -1,17 +1,14 @@
 package com.rental_api.ServiceBooking.Services.impl;
 
-import com.rental_api.ServiceBooking.Dto.ChatRequest;
-import com.rental_api.ServiceBooking.Dto.ChatResponse;
+import com.rental_api.ServiceBooking.Dto.*;
 import com.rental_api.ServiceBooking.Dto.Request.BookingClassRequest;
 import com.rental_api.ServiceBooking.Dto.Response.BookingResponse;
-import com.rental_api.ServiceBooking.Dto.NotificationMessage;
 import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 import com.rental_api.ServiceBooking.Entity.Enum.MessageType;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.BookingService;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,18 +27,28 @@ public class BookingServiceImpl implements BookingService {
     private final OpenClassRepository openClassRepository;
     private final DayTimeSlotRepository dayTimeSlotRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final NotificationRepository notificationRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    /* ================= BOOK CLASS ================= */
+    // ================= UTIL =================
+    private User getCurrentUser() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    private Tutor getTutor(User user) {
+        if (user.getTutor() == null) {
+            throw new RuntimeException("User is not a tutor");
+        }
+        return user.getTutor();
+    }
+
+    // ================= BOOK CLASS =================
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
 
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User student = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+        User student = getCurrentUser();
 
         OpenClass openClass = openClassRepository.findById(openClassId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
@@ -65,88 +72,136 @@ public class BookingServiceImpl implements BookingService {
         sendSystemChat(
                 student,
                 openClass.getTutor().getUser(),
-                "📌 New booking request from " + student.getFullname() +
-                        " for class: " + openClass.getTitle()
+                "📌 New booking from " + student.getFullname()
         );
 
         return mapToResponse(saved);
     }
 
-    /* ================= CONFIRM ================= */
+    // ================= CONFIRM =================
     @Override
     @Transactional
     public BookingResponse confirmBooking(Long bookingId) {
+
+        User tutorUser = getCurrentUser();
 
         BookingClass booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
         booking.setStatus(BookingStatus.CONFIRMED);
+
         BookingClass saved = bookingRepository.save(booking);
 
         sendSystemChat(
-                booking.getTutor().getUser(),
+                tutorUser,
                 booking.getUser(),
-                "🎉 Your booking is CONFIRMED for " +
-                        booking.getOpenClass().getTitle()
+                "🎉 Booking CONFIRMED: " + booking.getOpenClass().getTitle()
         );
 
         return mapToResponse(saved);
     }
 
-    /* ================= REJECT ================= */
+    // ================= REJECT =================
     @Override
     @Transactional
     public BookingResponse rejectBooking(Long bookingId) {
+
+        User tutorUser = getCurrentUser();
 
         BookingClass booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
         booking.setStatus(BookingStatus.REJECTED);
+
         BookingClass saved = bookingRepository.save(booking);
 
         sendSystemChat(
-                booking.getTutor().getUser(),
+                tutorUser,
                 booking.getUser(),
-                "❌ Your booking is REJECTED for " +
-                        booking.getOpenClass().getTitle()
+                "❌ Booking REJECTED: " + booking.getOpenClass().getTitle()
         );
 
         return mapToResponse(saved);
     }
 
-    /* ================= CHAT HISTORY ================= */
+    // ================= GET BOOKINGS =================
     @Override
-    public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
+    public List<BookingResponse> getBookingsByUserId(Long userId) {
+        return bookingRepository.findByUser_Id(userId)
+                .stream().map(this::mapToResponse).toList();
+    }
 
-        User me = userRepository.findByEmail(myEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    @Override
+    public List<BookingResponse> getBookingsByClassId(Long classId) {
+        return bookingRepository.findByOpenClass_Id(classId)
+                .stream().map(this::mapToResponse).toList();
+    }
 
-        List<ChatMessage> messages =
-                chatMessageRepository.findChatHistory(me.getId(), otherUserId);
+    @Override
+    public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
+        return bookingRepository.findByTutor_Id(tutorId)
+                .stream().map(this::mapToResponse).toList();
+    }
 
-        return messages.stream()
+    // ================= MY BOOKINGS =================
+    @Override
+    public List<BookingResponse> getMyBookings() {
+
+        User user = getCurrentUser();
+
+        return bookingRepository.findByUser_Id(user.getId())
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    @Override
+    public List<BookingResponse> getMyTutorBookings() {
+
+        User user = getCurrentUser();
+        Tutor tutor = getTutor(user);
+
+        return bookingRepository.findByTutor_Id(tutor.getId())
+                .stream().map(this::mapToResponse).toList();
+    }
+
+    // ================= COUNT =================
+    @Override
+    public Long getMyPendingBookingsCount() {
+
+        User user = getCurrentUser();
+
+        if (user.getTutor() == null) return 0L;
+
+        return bookingRepository.countByTutor_IdAndStatus(
+                user.getTutor().getId(),
+                BookingStatus.PENDING
+        );
+    }
+
+    // ================= CHAT =================
+    @Override
+    public List<ChatResponse> getChatHistory(String email, Long otherUserId) {
+
+        User me = getCurrentUser();
+
+        return chatMessageRepository.findChatHistory(me.getId(), otherUserId)
+                .stream()
                 .map(this::mapToChatResponse)
                 .toList();
     }
 
-    /* ================= UNREAD COUNT (FIXED) ================= */
     @Override
     public Long getUnreadMessageCount(String email) {
 
-        User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User me = getCurrentUser();
 
-        // ✅ FIXED METHOD CALL
         return chatMessageRepository.countUnreadByRecipient(me.getId());
     }
 
-    /* ================= MARK AS READ ================= */
     @Override
     @Transactional
     public void markMessagesAsRead(String email, Long senderId) {
 
-        User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User me = getCurrentUser();
 
         List<ChatMessage> unread =
                 chatMessageRepository.findByRecipient_IdAndSender_IdAndIsReadFalse(
@@ -157,47 +212,11 @@ public class BookingServiceImpl implements BookingService {
         chatMessageRepository.saveAll(unread);
     }
 
-    /* ================= SYSTEM CHAT ================= */
-    private void sendSystemChat(User sender, User recipient, String content) {
-
-        ChatMessage message = ChatMessage.builder()
-                .sender(sender)
-                .recipient(recipient)
-                .content(content)
-                .type(MessageType.SYSTEM)
-                .isRead(false)
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        ChatMessage saved = chatMessageRepository.save(message);
-
-        ChatResponse response = mapToChatResponse(saved);
-
-        messagingTemplate.convertAndSendToUser(
-                recipient.getEmail(),
-                "/queue/messages",
-                response
-        );
-
-        NotificationMessage notification = new NotificationMessage();
-        notification.setType("BOOKING_CHAT");
-        notification.setContent(content);
-        notification.setUserId(recipient.getId());
-
-        messagingTemplate.convertAndSendToUser(
-                recipient.getEmail(),
-                "/queue/notifications",
-                notification
-        );
-    }
-
-    /* ================= SEND MESSAGE ================= */
     @Override
     @Transactional
     public ChatResponse sendMessage(String senderEmail, ChatRequest request) {
 
-        User sender = userRepository.findByEmail(senderEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Sender not found"));
+        User sender = getCurrentUser();
 
         User recipient = userRepository.findById(request.getRecipientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
@@ -224,10 +243,32 @@ public class BookingServiceImpl implements BookingService {
         return response;
     }
 
-    /* ================= MAPPERS ================= */
+    // ================= SYSTEM CHAT =================
+    private void sendSystemChat(User sender, User recipient, String content) {
 
+        ChatMessage message = ChatMessage.builder()
+                .sender(sender)
+                .recipient(recipient)
+                .content(content)
+                .type(MessageType.SYSTEM)
+                .isRead(false)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        ChatMessage saved = chatMessageRepository.save(message);
+
+        messagingTemplate.convertAndSendToUser(
+                recipient.getEmail(),
+                "/queue/messages",
+                mapToChatResponse(saved)
+        );
+    }
+
+    // ================= MAPPERS =================
     private ChatResponse mapToChatResponse(ChatMessage m) {
+
         ChatResponse r = new ChatResponse();
+
         r.setId(m.getId());
         r.setSenderId(m.getSender().getId());
         r.setRecipientId(m.getRecipient().getId());
@@ -235,6 +276,12 @@ public class BookingServiceImpl implements BookingService {
         r.setTimestamp(m.getTimestamp());
         r.setRead(m.isRead());
         r.setMessageType(m.getType().name());
+
+        if (m.getBooking() != null) {
+            r.setBookingId(m.getBooking().getId());
+            r.setBookingStatus(m.getBooking().getStatus().name());
+        }
+
         return r;
     }
 
@@ -258,12 +305,4 @@ public class BookingServiceImpl implements BookingService {
                 .createdAt(b.getCreatedAt())
                 .build();
     }
-
-    /* ================= UNUSED ================= */
-    @Override public List<BookingResponse> getBookingsByUserId(Long userId){return List.of();}
-    @Override public List<BookingResponse> getBookingsByClassId(Long classId){return List.of();}
-    @Override public List<BookingResponse> getBookingsByTutorId(Long tutorId){return List.of();}
-    @Override public List<BookingResponse> getMyBookings(){return List.of();}
-    @Override public List<BookingResponse> getMyTutorBookings(){return List.of();}
-    @Override public Long getMyPendingBookingsCount(){return 0L;}
 }

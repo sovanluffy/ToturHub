@@ -1,13 +1,18 @@
 package com.rental_api.ServiceBooking.Dto;
 
 import lombok.Data;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ChatResponse {
 
-    // ================= BASIC MESSAGE =================
     private Long id;
     private Long senderId;
     private Long recipientId;
@@ -15,18 +20,13 @@ public class ChatResponse {
     private LocalDateTime timestamp;
     private boolean read;
 
-    // ================= MESSAGE TYPE =================
-    // USER | SYSTEM | BOOKING
     private String messageType;
 
-    // ================= BOOKING SUPPORT =================
     private Long bookingId;
-    private String bookingStatus; // CONFIRMED | REJECTED | PENDING
+    private String bookingStatus;
 
-    // ================= UI SUPPORT =================
     private boolean online;
 
-    // optional (future upgrade)
     private String senderName;
     private String senderAvatar;
 }

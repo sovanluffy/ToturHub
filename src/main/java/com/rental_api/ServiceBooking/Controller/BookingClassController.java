@@ -29,7 +29,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= CONFIRM ================= */
+    /* ================= CONFIRM BOOKING ================= */
     @PatchMapping("/confirm/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> confirmBooking(
@@ -40,7 +40,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= REJECT ================= */
+    /* ================= REJECT BOOKING ================= */
     @PatchMapping("/reject/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> rejectBooking(
@@ -51,7 +51,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= LIST ================= */
+    /* ================= STUDENT BOOKINGS ================= */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
             @PathVariable Long userId
@@ -69,16 +69,7 @@ public class BookingClassController {
         );
     }
 
-    @GetMapping("/tutor/{tutorId}")
-    @PreAuthorize("hasAnyRole('TUTOR','ADMIN')")
-    public ResponseEntity<List<BookingResponse>> getBookingsByTutorId(
-            @PathVariable Long tutorId
-    ) {
-        return ResponseEntity.ok(
-                bookingService.getBookingsByTutorId(tutorId)
-        );
-    }
-
+    /* ================= TUTOR BOOKINGS (FIXED SAFE VERSION) ================= */
     @GetMapping("/tutor/me")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
@@ -87,6 +78,7 @@ public class BookingClassController {
         );
     }
 
+    /* ================= CLASS BOOKINGS ================= */
     @GetMapping("/class/{classId}")
     public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
             @PathVariable Long classId
@@ -96,6 +88,7 @@ public class BookingClassController {
         );
     }
 
+    /* ================= TUTOR PENDING COUNT ================= */
     @GetMapping("/tutor/me/pending-count")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<Long> getPendingCount() {

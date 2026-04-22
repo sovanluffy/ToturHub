@@ -19,19 +19,28 @@ public class ChatMessage {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // ================= USERS =================
     @ManyToOne
+    @JoinColumn(name = "sender_id")
     private User sender;
 
     @ManyToOne
+    @JoinColumn(name = "recipient_id")
     private User recipient;
 
+    // ================= MESSAGE =================
     private String content;
 
     private boolean isRead;
 
     private LocalDateTime timestamp;
 
-    // 🔥 ADD THIS (IMPORTANT)
+    // ================= TYPE =================
     @Enumerated(EnumType.STRING)
     private MessageType type;
+
+    // ================= 🔥 BOOKING LINK (FIX) =================
+    @ManyToOne
+    @JoinColumn(name = "booking_id")
+    private BookingClass booking;
 }
