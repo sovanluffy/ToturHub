@@ -92,10 +92,13 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
+        // ================= REAL-TIME NOTIFICATION =================
+        sendBookingNotification(saved, "CONFIRMED", "🎉 Your booking has been CONFIRMED");
+
         sendSystemChat(
                 tutorUser,
-                booking.getUser(),
-                "🎉 Booking CONFIRMED: " + booking.getOpenClass().getTitle()
+                saved.getUser(),
+                "🎉 Booking CONFIRMED: " + saved.getOpenClass().getTitle()
         );
 
         return mapToResponse(saved);
@@ -115,13 +118,36 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
+        // ================= REAL-TIME NOTIFICATION =================
+        sendBookingNotification(saved, "REJECTED", "❌ Your booking has been REJECTED");
+
         sendSystemChat(
                 tutorUser,
-                booking.getUser(),
-                "❌ Booking REJECTED: " + booking.getOpenClass().getTitle()
+                saved.getUser(),
+                "❌ Booking REJECTED: " + saved.getOpenClass().getTitle()
         );
 
         return mapToResponse(saved);
+    }
+
+    // ================= REAL-TIME NOTIFICATION METHOD =================
+    private void sendBookingNotification(BookingClass booking, String status, String message) {
+
+        BookingNotification notif = BookingNotification.builder()
+                .type("BOOKING_UPDATE")
+                .bookingId(booking.getId())
+                .status(status)
+                .message(message)
+                .tutorId(booking.getTutor().getId())
+                .studentId(booking.getUser().getId())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        messagingTemplate.convertAndSendToUser(
+                booking.getUser().getEmail(),
+                "/queue/notifications",
+                notif
+        );
     }
 
     // ================= GET BOOKINGS =================
@@ -146,19 +172,15 @@ public class BookingServiceImpl implements BookingService {
     // ================= MY BOOKINGS =================
     @Override
     public List<BookingResponse> getMyBookings() {
-
         User user = getCurrentUser();
-
         return bookingRepository.findByUser_Id(user.getId())
                 .stream().map(this::mapToResponse).toList();
     }
 
     @Override
     public List<BookingResponse> getMyTutorBookings() {
-
         User user = getCurrentUser();
         Tutor tutor = getTutor(user);
-
         return bookingRepository.findByTutor_Id(tutor.getId())
                 .stream().map(this::mapToResponse).toList();
     }
@@ -166,7 +188,6 @@ public class BookingServiceImpl implements BookingService {
     // ================= COUNT =================
     @Override
     public Long getMyPendingBookingsCount() {
-
         User user = getCurrentUser();
 
         if (user.getTutor() == null) return 0L;
@@ -180,7 +201,6 @@ public class BookingServiceImpl implements BookingService {
     // ================= CHAT =================
     @Override
     public List<ChatResponse> getChatHistory(String email, Long otherUserId) {
-
         User me = getCurrentUser();
 
         return chatMessageRepository.findChatHistory(me.getId(), otherUserId)
@@ -191,16 +211,13 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public Long getUnreadMessageCount(String email) {
-
         User me = getCurrentUser();
-
         return chatMessageRepository.countUnreadByRecipient(me.getId());
     }
 
     @Override
     @Transactional
     public void markMessagesAsRead(String email, Long senderId) {
-
         User me = getCurrentUser();
 
         List<ChatMessage> unread =

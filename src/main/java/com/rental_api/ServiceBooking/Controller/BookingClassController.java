@@ -53,6 +53,7 @@ public class BookingClassController {
 
     /* ================= STUDENT BOOKINGS ================= */
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
             @PathVariable Long userId
     ) {
@@ -69,7 +70,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= TUTOR BOOKINGS (FIXED SAFE VERSION) ================= */
+    /* ================= TUTOR BOOKINGS ================= */
     @GetMapping("/tutor/me")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
@@ -80,6 +81,7 @@ public class BookingClassController {
 
     /* ================= CLASS BOOKINGS ================= */
     @GetMapping("/class/{classId}")
+    @PreAuthorize("hasRole('TUTOR') or hasRole('ADMIN')")
     public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
             @PathVariable Long classId
     ) {
@@ -88,7 +90,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= TUTOR PENDING COUNT ================= */
+    /* ================= PENDING COUNT ================= */
     @GetMapping("/tutor/me/pending-count")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<Long> getPendingCount() {
