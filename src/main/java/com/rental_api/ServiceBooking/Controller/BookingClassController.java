@@ -17,7 +17,7 @@ public class BookingClassController {
 
     private final BookingService bookingService;
 
-    /* ================= BOOK CLASS ================= */
+    // ================= BOOK CLASS =================
     @PostMapping("/book-class/{openClassId}")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<BookingResponse> bookClass(
@@ -29,60 +29,7 @@ public class BookingClassController {
         );
     }
 
-    /* ================= STUDENT ================= */
-
-    @GetMapping("/user/{userId}")
-    @PreAuthorize("hasAnyRole('STUDENT','TUTOR','ADMIN')")
-    public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
-            @PathVariable Long userId
-    ) {
-        return ResponseEntity.ok(
-                bookingService.getBookingsByUserId(userId)
-        );
-    }
-
-    @GetMapping("/user/me")
-    @PreAuthorize("hasRole('STUDENT')")
-    public ResponseEntity<List<BookingResponse>> getMyBookings() {
-        return ResponseEntity.ok(
-                bookingService.getMyBookings()
-        );
-    }
-
-    /* ================= TUTOR ================= */
-
-    @GetMapping("/tutor/{tutorId}")
-    @PreAuthorize("hasAnyRole('TUTOR','ADMIN')")
-    public ResponseEntity<List<BookingResponse>> getBookingsByTutorId(
-            @PathVariable Long tutorId
-    ) {
-        return ResponseEntity.ok(
-                bookingService.getBookingsByTutorId(tutorId)
-        );
-    }
-
-    @GetMapping("/tutor/me")
-    @PreAuthorize("hasRole('TUTOR')")
-    public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
-        return ResponseEntity.ok(
-                bookingService.getMyTutorBookings()
-        );
-    }
-
-    /* ================= CLASS ================= */
-
-    @GetMapping("/class/{openClassId}")
-    @PreAuthorize("hasAnyRole('TUTOR','ADMIN')")
-    public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
-            @PathVariable Long openClassId
-    ) {
-        return ResponseEntity.ok(
-                bookingService.getBookingsByClassId(openClassId)
-        );
-    }
-
-    /* ================= ACTIONS ================= */
-
+    // ================= CONFIRM BOOKING =================
     @PatchMapping("/confirm/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> confirmBooking(
@@ -93,6 +40,7 @@ public class BookingClassController {
         );
     }
 
+    // ================= REJECT BOOKING =================
     @PatchMapping("/reject/{bookingId}")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<BookingResponse> rejectBooking(
@@ -103,13 +51,74 @@ public class BookingClassController {
         );
     }
 
-    /* ================= DASHBOARD ================= */
+    // ================= GET BOOKINGS BY USER ID =================
+    @GetMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TUTOR')")
+    public ResponseEntity<List<BookingResponse>> getBookingsByUserId(
+            @PathVariable Long userId
+    ) {
+        return ResponseEntity.ok(
+                bookingService.getBookingsByUserId(userId)
+        );
+    }
 
+    // ================= MY BOOKINGS (STUDENT) =================
+    @GetMapping("/user/me")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<List<BookingResponse>> getMyBookings() {
+        return ResponseEntity.ok(
+                bookingService.getMyBookings()
+        );
+    }
+
+    // ================= MY BOOKINGS (TUTOR) =================
+    @GetMapping("/tutor/me")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<List<BookingResponse>> getMyTutorBookings() {
+        return ResponseEntity.ok(
+                bookingService.getMyTutorBookings()
+        );
+    }
+
+    // ================= CLASS BOOKINGS =================
+    @GetMapping("/class/{classId}")
+    @PreAuthorize("hasRole('TUTOR') or hasRole('ADMIN')")
+    public ResponseEntity<List<BookingResponse>> getBookingsByClassId(
+            @PathVariable Long classId
+    ) {
+        return ResponseEntity.ok(
+                bookingService.getBookingsByClassId(classId)
+        );
+    }
+
+    // ================= PENDING COUNT (BADGE) =================
     @GetMapping("/tutor/me/pending-count")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<Long> getPendingCount() {
         return ResponseEntity.ok(
                 bookingService.getMyPendingBookingsCount()
+        );
+    }
+
+    // ================= OPTIONAL (RECOMMENDED) =================
+
+    // GET BOOKING DETAILS BY USER (safe view)
+    @GetMapping("/user/{userId}/detail")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TUTOR')")
+    public ResponseEntity<List<BookingResponse>> getUserBookingDetail(
+            @PathVariable Long userId
+    ) {
+        return ResponseEntity.ok(
+                bookingService.getBookingsByUserId(userId)
+        );
+    }
+
+    // GET MY BOOKINGS (GENERAL ENDPOINT FOR FRONTEND)
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('TUTOR')")
+    public ResponseEntity<List<BookingResponse>> getMyAllBookings() {
+        return ResponseEntity.ok(
+                bookingService.getMyBookings()
         );
     }
 }

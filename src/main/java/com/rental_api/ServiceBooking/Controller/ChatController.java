@@ -1,11 +1,13 @@
 package com.rental_api.ServiceBooking.Controller;
 
+import com.rental_api.ServiceBooking.Dto.ChatContactResponse;
 import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,38 +21,88 @@ public class ChatController {
 
     // ================= SEND MESSAGE =================
     @PostMapping("/send")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<ChatResponse> sendMessage(
-            Authentication authentication,
             @RequestBody ChatRequest request
     ) {
-        String senderEmail = authentication.getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
         return ResponseEntity.ok(
-                bookingService.sendMessage(senderEmail, request)
+                bookingService.sendMessage(email, request)
         );
     }
 
     // ================= CHAT HISTORY =================
     @GetMapping("/history/{otherUserId}")
-    public ResponseEntity<List<ChatResponse>> getHistory(
-            Authentication authentication,
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<ChatResponse>> getChatHistory(
             @PathVariable Long otherUserId
     ) {
-        String myEmail = authentication.getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
         return ResponseEntity.ok(
-                bookingService.getChatHistory(myEmail, otherUserId)
+                bookingService.getChatHistory(email, otherUserId)
         );
     }
 
-    // ================= MARK AS READ (FIXED) =================
+    // ================= MARK AS READ =================
     @PutMapping("/read/{senderId}")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Void> markAsRead(
-            Authentication authentication,
             @PathVariable Long senderId
     ) {
-        String recipientEmail = authentication.getName();
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
 
-        bookingService.markMessagesAsRead(recipientEmail, senderId);
+        bookingService.markMessagesAsRead(email, senderId);
 
         return ResponseEntity.ok().build();
+    }
+
+    // ================= UNREAD COUNT =================
+    @GetMapping("/unread-count")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<Long> getUnreadCount() {
+
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity.ok(
+                bookingService.getUnreadMessageCount(email)
+        );
+    }
+
+    // ================= ⭐ CHAT CONTACT LIST (IMPORTANT FIX) =================
+    @GetMapping("/contacts")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<ChatContactResponse>> getChatContacts() {
+
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity.ok(
+                bookingService.getChatContacts(email)
+        );
+    }
+
+    // ================= CHAT USER LIST (OPTIONAL DEBUG) =================
+    @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<Long>> getChatUserList() {
+
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity.ok(
+                bookingService.getChatUserList(email)
+        );
     }
 }

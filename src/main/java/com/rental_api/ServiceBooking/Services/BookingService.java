@@ -1,5 +1,6 @@
 package com.rental_api.ServiceBooking.Services;
 
+import com.rental_api.ServiceBooking.Dto.ChatContactResponse;
 import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Dto.Request.BookingClassRequest;
@@ -17,6 +18,7 @@ public interface BookingService {
 
     BookingResponse rejectBooking(Long bookingId);
 
+
     /* ================= BOOKING GETTERS ================= */
 
     List<BookingResponse> getBookingsByUserId(Long userId);
@@ -31,22 +33,21 @@ public interface BookingService {
 
     Long getMyPendingBookingsCount();
 
-    /* ================= CHAT SYSTEM ================= */
 
-    /**
-     * Save message in DB + return saved message
-     * (WebSocket layer will broadcast it)
-     */
+    /* ================= CHAT ================= */
+
     ChatResponse sendMessage(String senderEmail, ChatRequest request);
 
-    /**
-     * Get chat history between current user and other user
-     * ALWAYS returns DB data (source of truth)
-     */
     List<ChatResponse> getChatHistory(String myEmail, Long otherUserId);
 
-    /**
-     * Mark messages as read when user opens chat
-     */
     void markMessagesAsRead(String recipientEmail, Long senderId);
+
+    Long getUnreadMessageCount(String email);
+
+
+    /* ================= CHAT CONTACTS ================= */
+
+    List<ChatContactResponse> getChatContacts(String email);
+
+    List<Long> getChatUserList(String email);
 }
