@@ -7,33 +7,53 @@ import com.rental_api.ServiceBooking.Entity.Tutor;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface OpenClassRepository extends JpaRepository<OpenClass, Long>, JpaSpecificationExecutor<OpenClass> {
+public interface OpenClassRepository extends JpaRepository<OpenClass, Long>,
+        JpaSpecificationExecutor<OpenClass> {
 
-    /**
-     * ✅ FIX: Use "Location_City" to tell Spring to look inside the Location entity.
-     * Logic: OpenClass -> location -> city
-     */
+    // ================= LOCATION FILTER =================
     List<OpenClass> findByLocation_CityAndStatus(String city, ClassStatus status);
 
-    /**
-     * ✅ FIX: Use "Location_District" for nested search.
-     */
     List<OpenClass> findByLocation_DistrictAndStatus(String district, ClassStatus status);
 
-    /**
-     * ✅ Corrected: Find by LearningMode in a Set
-     */
+    // ================= LEARNING MODE =================
     List<OpenClass> findByLearningModesContainingAndStatus(LearningMode mode, ClassStatus status);
-    
-    /**
-     * ✅ Standard find by Tutor ID
-     */
+
+    // ================= TUTOR =================
     List<OpenClass> findByTutorId(Long tutorId);
-      // ✅ Add this method for getting all classes by a list of tutors
+
     List<OpenClass> findAllByTutorIn(List<Tutor> tutors);
+
+    // =========================================================
+    // 🔥 NEW: CONFIRMED STUDENT COUNT (BEST PERFORMANCE)
+    // =========================================================
+
+    @Query("""
+        SELECT COUNT(b)
+        FROM BookingClass b
+        WHERE b.openClass.id = :classId
+        AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
+    """)
+    long countConfirmedStudentsByClassId(@Param("classId") Long classId);
+
+    // =========================================================
+    // 🔥 NEW: CONFIRMED STUDENTS (FOR PROFILE PAGE)
+    // =========================================================
+
+    @Query("""
+        SELECT b
+        FROM BookingClass b
+        JOIN FETCH b.user
+        WHERE b.openClass.id = :classId
+        AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
+    """)
+    List<com.rental_api.ServiceBooking.Entity.BookingClass> findConfirmedStudentsByClassId(
+            @Param("classId") Long classId
+    );
 }

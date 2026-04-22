@@ -97,8 +97,20 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         WHERE b.user.id = :userId
     """)
     List<BookingClass> findAllByUserWithDetails(@Param("userId") Long userId);
-
-
+@Query("""
+    SELECT COUNT(b)
+    FROM BookingClass b
+    WHERE b.openClass.id = :classId
+    AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
+""")
+long countConfirmedByClassId(@Param("classId") Long classId);
+@Query("""
+    SELECT b FROM BookingClass b
+    JOIN FETCH b.user
+    WHERE b.openClass.id = :classId
+    AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
+""")
+List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId);
     @Query("""
         SELECT b FROM BookingClass b
         JOIN FETCH b.user

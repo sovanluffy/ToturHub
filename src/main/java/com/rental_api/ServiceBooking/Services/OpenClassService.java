@@ -8,9 +8,9 @@ import java.util.List;
 
 public interface OpenClassService {
 
-    OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile);
-
     OpenClassResponse createClass(OpenClassRequest request);
+
+    OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile);
 
     OpenClassResponse updateClass(Long id, OpenClassRequest request);
 

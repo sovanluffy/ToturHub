@@ -38,9 +38,9 @@ public class OpenClass {
     // ================= SUBJECTS =================
     @ManyToMany
     @JoinTable(
-        name = "class_subjects",
-        joinColumns = @JoinColumn(name = "class_id"),
-        inverseJoinColumns = @JoinColumn(name = "subject_id")
+            name = "class_subjects",
+            joinColumns = @JoinColumn(name = "class_id"),
+            inverseJoinColumns = @JoinColumn(name = "subject_id")
     )
     private List<Subject> subjects = new ArrayList<>();
 
@@ -62,26 +62,30 @@ public class OpenClass {
     // ================= LEARNING MODES =================
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
-        name = "class_learning_modes",
-        joinColumns = @JoinColumn(name = "class_id")
+            name = "class_learning_modes",
+            joinColumns = @JoinColumn(name = "class_id")
     )
     @Enumerated(EnumType.STRING)
     private Set<LearningMode> learningModes = new HashSet<>();
 
-    // ================= DAY TIME SLOTS (CRITICAL FIX) =================
+    // ================= DAY TIME SLOTS =================
     @OneToMany(
-        mappedBy = "openClass",
-        cascade = CascadeType.ALL,
-        orphanRemoval = true
+            mappedBy = "openClass",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
     )
     private List<DayTimeSlot> dayTimeSlots = new ArrayList<>();
 
     // ================= TIMESTAMP =================
     private LocalDateTime createdAt;
 
+    // 🔥 NEW: 24H NEW CLASS SYSTEM
+    private LocalDateTime newUntil;
+
     @PrePersist
     public void onCreate() {
         this.createdAt = LocalDateTime.now();
+        this.newUntil = this.createdAt.plusHours(24);
     }
 
     // ================= ENUMS =================
@@ -99,7 +103,11 @@ public class OpenClass {
         OUTSIDE
     }
 
-    // ================= HELPER METHODS (IMPORTANT BEST PRACTICE) =================
+    // ================= HELPER METHODS =================
+
+    public boolean isNew() {
+        return newUntil != null && LocalDateTime.now().isBefore(newUntil);
+    }
 
     public void addDayTimeSlot(DayTimeSlot slot) {
         dayTimeSlots.add(slot);
