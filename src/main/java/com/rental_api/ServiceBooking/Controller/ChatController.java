@@ -1,5 +1,6 @@
 package com.rental_api.ServiceBooking.Controller;
 
+import com.rental_api.ServiceBooking.Dto.ChatContactResponse;
 import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
@@ -74,6 +75,34 @@ public class ChatController {
 
         return ResponseEntity.ok(
                 bookingService.getUnreadMessageCount(email)
+        );
+    }
+
+    // ================= ⭐ CHAT CONTACT LIST (IMPORTANT FIX) =================
+    @GetMapping("/contacts")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<ChatContactResponse>> getChatContacts() {
+
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity.ok(
+                bookingService.getChatContacts(email)
+        );
+    }
+
+    // ================= CHAT USER LIST (OPTIONAL DEBUG) =================
+    @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<Long>> getChatUserList() {
+
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity.ok(
+                bookingService.getChatUserList(email)
         );
     }
 }

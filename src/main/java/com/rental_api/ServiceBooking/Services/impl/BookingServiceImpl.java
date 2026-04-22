@@ -17,6 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +34,7 @@ public class BookingServiceImpl implements BookingService {
     private final SimpMessagingTemplate messagingTemplate;
 
     // ================= UTIL =================
+
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
@@ -43,7 +48,8 @@ public class BookingServiceImpl implements BookingService {
         return user.getTutor();
     }
 
-    // ================= BOOK CLASS =================
+    // ================= BOOKING =================
+
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
@@ -56,6 +62,26 @@ public class BookingServiceImpl implements BookingService {
         DayTimeSlot slot = dayTimeSlotRepository.findById(request.getDayTimeSlotId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
+        // ================= RULE: BLOCK SAME SCHEDULE =================
+        List<BookingStatus> blockedStatuses = List.of(
+                BookingStatus.PENDING,
+                BookingStatus.CONFIRMED
+        );
+
+        boolean exists = bookingRepository
+                .existsByUser_IdAndSchedule_IdAndStatusIn(
+                        student.getId(),
+                        slot.getId(),
+                        blockedStatuses
+                );
+
+        if (exists) {
+            throw new RuntimeException(
+                    "You already have a PENDING or CONFIRMED booking for this schedule"
+            );
+        }
+
+        // ================= CREATE BOOKING =================
         BookingClass booking = BookingClass.builder()
                 .user(student)
                 .tutor(openClass.getTutor())
@@ -79,21 +105,19 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // ================= CONFIRM =================
+
     @Override
     @Transactional
     public BookingResponse confirmBooking(Long bookingId) {
 
         User tutorUser = getCurrentUser();
 
-        BookingClass booking = bookingRepository.findById(bookingId)
+        BookingClass booking = bookingRepository.findByIdWithDetails(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
         booking.setStatus(BookingStatus.CONFIRMED);
 
         BookingClass saved = bookingRepository.save(booking);
-
-        // ================= REAL-TIME NOTIFICATION =================
-        sendBookingNotification(saved, "CONFIRMED", "🎉 Your booking has been CONFIRMED");
 
         sendSystemChat(
                 tutorUser,
@@ -105,21 +129,19 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // ================= REJECT =================
+
     @Override
     @Transactional
     public BookingResponse rejectBooking(Long bookingId) {
 
         User tutorUser = getCurrentUser();
 
-        BookingClass booking = bookingRepository.findById(bookingId)
+        BookingClass booking = bookingRepository.findByIdWithDetails(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
         booking.setStatus(BookingStatus.REJECTED);
 
         BookingClass saved = bookingRepository.save(booking);
-
-        // ================= REAL-TIME NOTIFICATION =================
-        sendBookingNotification(saved, "REJECTED", "❌ Your booking has been REJECTED");
 
         sendSystemChat(
                 tutorUser,
@@ -130,30 +152,11 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(saved);
     }
 
-    // ================= REAL-TIME NOTIFICATION METHOD =================
-    private void sendBookingNotification(BookingClass booking, String status, String message) {
-
-        BookingNotification notif = BookingNotification.builder()
-                .type("BOOKING_UPDATE")
-                .bookingId(booking.getId())
-                .status(status)
-                .message(message)
-                .tutorId(booking.getTutor().getId())
-                .studentId(booking.getUser().getId())
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        messagingTemplate.convertAndSendToUser(
-                booking.getUser().getEmail(),
-                "/queue/notifications",
-                notif
-        );
-    }
-
     // ================= GET BOOKINGS =================
+
     @Override
     public List<BookingResponse> getBookingsByUserId(Long userId) {
-        return bookingRepository.findByUser_Id(userId)
+        return bookingRepository.findAllByUserWithDetails(userId)
                 .stream().map(this::mapToResponse).toList();
     }
 
@@ -165,15 +168,14 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
-        return bookingRepository.findByTutor_Id(tutorId)
+        return bookingRepository.findAllByTutorWithDetails(tutorId)
                 .stream().map(this::mapToResponse).toList();
     }
 
-    // ================= MY BOOKINGS =================
     @Override
     public List<BookingResponse> getMyBookings() {
         User user = getCurrentUser();
-        return bookingRepository.findByUser_Id(user.getId())
+        return bookingRepository.findAllByUserWithDetails(user.getId())
                 .stream().map(this::mapToResponse).toList();
     }
 
@@ -181,11 +183,10 @@ public class BookingServiceImpl implements BookingService {
     public List<BookingResponse> getMyTutorBookings() {
         User user = getCurrentUser();
         Tutor tutor = getTutor(user);
-        return bookingRepository.findByTutor_Id(tutor.getId())
+        return bookingRepository.findAllByTutorWithDetails(tutor.getId())
                 .stream().map(this::mapToResponse).toList();
     }
 
-    // ================= COUNT =================
     @Override
     public Long getMyPendingBookingsCount() {
         User user = getCurrentUser();
@@ -199,8 +200,10 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // ================= CHAT =================
+
     @Override
     public List<ChatResponse> getChatHistory(String email, Long otherUserId) {
+
         User me = getCurrentUser();
 
         return chatMessageRepository.findChatHistory(me.getId(), otherUserId)
@@ -217,7 +220,8 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
-    public void markMessagesAsRead(String email, Long senderId) {
+    public void markMessagesAsRead(String recipientEmail, Long senderId) {
+
         User me = getCurrentUser();
 
         List<ChatMessage> unread =
@@ -227,6 +231,73 @@ public class BookingServiceImpl implements BookingService {
 
         unread.forEach(m -> m.setRead(true));
         chatMessageRepository.saveAll(unread);
+    }
+
+    // ================= CHAT CONTACTS =================
+
+    @Override
+    public List<ChatContactResponse> getChatContacts(String email) {
+
+        User me = getCurrentUser();
+
+        List<ChatMessage> messages =
+                chatMessageRepository.findAllUserMessages(me.getId());
+
+        Map<Long, ChatMessage> lastMessageMap = new HashMap<>();
+        Map<Long, Long> unreadMap = new HashMap<>();
+
+        for (ChatMessage m : messages) {
+
+            Long otherId = m.getSender().getId().equals(me.getId())
+                    ? m.getRecipient().getId()
+                    : m.getSender().getId();
+
+            lastMessageMap.putIfAbsent(otherId, m);
+
+            if (!m.isRead() && m.getRecipient().getId().equals(me.getId())) {
+                unreadMap.put(otherId,
+                        unreadMap.getOrDefault(otherId, 0L) + 1);
+            }
+        }
+
+        return lastMessageMap.entrySet().stream()
+                .map(entry -> {
+
+                    User other = userRepository.findById(entry.getKey()).orElse(null);
+                    ChatMessage last = entry.getValue();
+
+                    ChatContactResponse res = new ChatContactResponse();
+                    res.setUserId(entry.getKey());
+                    res.setName(other != null ? other.getFullname() : "Unknown");
+                    res.setAvatar(other != null ? other.getAvatarUrl() : null);
+                    res.setLastMessage(last.getContent());
+                    res.setLastTime(last.getTimestamp().toString());
+                    res.setUnreadCount(unreadMap.getOrDefault(entry.getKey(), 0L));
+
+                    return res;
+                })
+                .toList();
+    }
+
+    @Override
+    public List<Long> getChatUserList(String email) {
+
+        User me = getCurrentUser();
+
+        List<ChatMessage> messages =
+                chatMessageRepository.findAllUserMessages(me.getId());
+
+        Set<Long> ids = new LinkedHashSet<>();
+
+        for (ChatMessage m : messages) {
+            if (m.getSender().getId().equals(me.getId())) {
+                ids.add(m.getRecipient().getId());
+            } else {
+                ids.add(m.getSender().getId());
+            }
+        }
+
+        return List.copyOf(ids);
     }
 
     @Override
@@ -261,6 +332,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // ================= SYSTEM CHAT =================
+
     private void sendSystemChat(User sender, User recipient, String content) {
 
         ChatMessage message = ChatMessage.builder()
@@ -272,20 +344,14 @@ public class BookingServiceImpl implements BookingService {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        ChatMessage saved = chatMessageRepository.save(message);
-
-        messagingTemplate.convertAndSendToUser(
-                recipient.getEmail(),
-                "/queue/messages",
-                mapToChatResponse(saved)
-        );
+        chatMessageRepository.save(message);
     }
 
     // ================= MAPPERS =================
+
     private ChatResponse mapToChatResponse(ChatMessage m) {
 
         ChatResponse r = new ChatResponse();
-
         r.setId(m.getId());
         r.setSenderId(m.getSender().getId());
         r.setRecipientId(m.getRecipient().getId());
@@ -293,33 +359,37 @@ public class BookingServiceImpl implements BookingService {
         r.setTimestamp(m.getTimestamp());
         r.setRead(m.isRead());
         r.setMessageType(m.getType().name());
-
-        if (m.getBooking() != null) {
-            r.setBookingId(m.getBooking().getId());
-            r.setBookingStatus(m.getBooking().getStatus().name());
-        }
-
         return r;
     }
 
     private BookingResponse mapToResponse(BookingClass b) {
+
+        User user = b.getUser();
+        OpenClass openClass = b.getOpenClass();
+        DayTimeSlot slot = b.getSchedule();
+
         return BookingResponse.builder()
                 .bookingId(b.getId())
-                .userId(b.getUser().getId())
-                .studentName(b.getUser().getFullname())
-                .studentEmail(b.getUser().getEmail())
-                .studentPhone(b.getUser().getPhone())
-                .studentAvatar(b.getUser().getAvatarUrl())
-                .classId(b.getOpenClass().getId())
-                .classTitle(b.getOpenClass().getTitle())
-                .scheduleId(b.getSchedule().getId())
-                .day(b.getSchedule().getDay())
-                .startTime(b.getSchedule().getStartTime())
-                .endTime(b.getSchedule().getEndTime())
+
+                .userId(user.getId())
+                .studentName(user.getFullname())
+                .studentEmail(user.getEmail())
+                .studentPhone(user.getPhone())
+                .studentAvatar(user.getAvatarUrl())
+
+                .classId(openClass != null ? openClass.getId() : null)
+                .classTitle(openClass != null ? openClass.getTitle() : null)
+
+                .scheduleId(slot != null ? slot.getId() : null)
+                .day(slot != null ? slot.getDay() : null)
+                .startTime(slot != null ? slot.getStartTime() : null)
+                .endTime(slot != null ? slot.getEndTime() : null)
+
                 .status(b.getStatus())
                 .note(b.getNote())
                 .telegram(b.getTelegram())
                 .createdAt(b.getCreatedAt())
+
                 .build();
     }
 }
