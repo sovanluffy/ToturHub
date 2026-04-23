@@ -18,7 +18,12 @@ public class OpenClassResponse {
     private Long classId;
     private String title;
     private String description;
-    private String status;
+
+    // ================= STATUS =================
+    private String status; // OPEN, CLOSED, ARCHIVED
+
+    // ================= VISIBILITY (IMPORTANT FIX) =================
+    private String visibilityStatus; // PUBLIC, PRIVATE
 
     // ================= TUTOR =================
     private TutorPublicResponse tutor;
@@ -50,12 +55,12 @@ public class OpenClassResponse {
 
     private String classImage;
 
-    // ================= 24H NEW SYSTEM =================
-    private boolean isNew;
+    // ================= TIMESTAMP =================
     private LocalDateTime createdAt;
     private LocalDateTime newUntil;
+    private boolean isNew;
 
-    // ================= CONFIRMED STUDENTS =================
+    // ================= STUDENTS =================
     private List<StudentPublicResponse> confirmedStudents;
 
     @Data
@@ -84,4 +89,8 @@ public class OpenClassResponse {
         private Integer maxStudents;
         private Integer bookedCount;
     }
+
+    // ================= OPTIONAL (FOR COPY FEATURE) =================
+    private Boolean isCopy;
+    private Long originalClassId;
 }

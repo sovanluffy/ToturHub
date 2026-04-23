@@ -5,10 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(name = "open_classes")
@@ -48,38 +45,32 @@ public class OpenClass {
     @Enumerated(EnumType.STRING)
     private ClassStatus status = ClassStatus.OPEN;
 
+    // ================= VISIBILITY =================
+    @Enumerated(EnumType.STRING)
+    private VisibilityStatus visibilityStatus = VisibilityStatus.PUBLIC;
+
     // ================= PRICE =================
     private BigDecimal basePrice;
     private Integer maxStudents;
 
     // ================= LOCATION =================
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "location_id")
     private Location location;
 
     private String specificAddress;
 
     // ================= LEARNING MODES =================
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "class_learning_modes",
-            joinColumns = @JoinColumn(name = "class_id")
-    )
+    @CollectionTable(name = "class_learning_modes", joinColumns = @JoinColumn(name = "class_id"))
     @Enumerated(EnumType.STRING)
     private Set<LearningMode> learningModes = new HashSet<>();
 
-    // ================= DAY TIME SLOTS =================
-    @OneToMany(
-            mappedBy = "openClass",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
+    // ================= SCHEDULE =================
+    @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DayTimeSlot> dayTimeSlots = new ArrayList<>();
 
     // ================= TIMESTAMP =================
     private LocalDateTime createdAt;
-
-    // 🔥 NEW: 24H NEW CLASS SYSTEM
     private LocalDateTime newUntil;
 
     @PrePersist
@@ -88,34 +79,19 @@ public class OpenClass {
         this.newUntil = this.createdAt.plusHours(24);
     }
 
-    // ================= ENUMS =================
-    public enum ClassStatus {
-        OPEN,
-        CLOSED,
-        FULL,
-        ARCHIVED
-    }
-
-    public enum LearningMode {
-        ONLINE,
-        STUDENT_HOME,
-        TUTOR_CLASS,
-        OUTSIDE
-    }
-
-    // ================= HELPER METHODS =================
-
     public boolean isNew() {
         return newUntil != null && LocalDateTime.now().isBefore(newUntil);
     }
 
-    public void addDayTimeSlot(DayTimeSlot slot) {
-        dayTimeSlots.add(slot);
-        slot.setOpenClass(this);
+    public enum ClassStatus {
+        OPEN, CLOSED, FULL, ARCHIVED
     }
 
-    public void removeDayTimeSlot(DayTimeSlot slot) {
-        dayTimeSlots.remove(slot);
-        slot.setOpenClass(null);
+    public enum VisibilityStatus {
+        PUBLIC, PRIVATE
+    }
+
+    public enum LearningMode {
+        ONLINE, STUDENT_HOME, TUTOR_CLASS, OUTSIDE
     }
 }
