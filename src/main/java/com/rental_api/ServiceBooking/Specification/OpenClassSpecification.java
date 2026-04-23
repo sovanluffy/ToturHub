@@ -1,62 +1,47 @@
 package com.rental_api.ServiceBooking.Specification;
 
 import com.rental_api.ServiceBooking.Entity.OpenClass;
-import com.rental_api.ServiceBooking.Entity.Subject;
-import com.rental_api.ServiceBooking.Entity.Tutor;
-import com.rental_api.ServiceBooking.Entity.Location;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.MapJoin;
-import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 public class OpenClassSpecification {
 
-    public static Specification<OpenClass> getFilteredClasses(
-            String city, 
-            String district, 
-            Long subjectId, 
-            BigDecimal maxPrice, 
-            Integer minExp) {
-        
+    public static Specification<OpenClass> filter(String location, String subject) {
         return (root, query, cb) -> {
+
+            query.distinct(true);
+
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. Filter by City (Joins the Location table)
-            if (city != null && !city.isEmpty()) {
-                predicates.add(cb.equal(root.get("location").get("city"), city));
+            if (location != null && !location.trim().isEmpty()) {
+                Join<Object, Object> locJoin = root.join("location", JoinType.LEFT);
+
+                Predicate district = cb.like(
+                        cb.lower(locJoin.get("district")),
+                        "%" + location.toLowerCase() + "%"
+                );
+
+                Predicate city = cb.like(
+                        cb.lower(locJoin.get("city")),
+                        "%" + location.toLowerCase() + "%"
+                );
+
+                predicates.add(cb.or(district, city));
             }
 
-            // 2. Filter by District
-            if (district != null && !district.isEmpty()) {
-                predicates.add(cb.equal(root.get("location").get("district"), district));
-            }
+            if (subject != null && !subject.trim().isEmpty()) {
+                Join<Object, Object> subjectJoin = root.join("subjects", JoinType.LEFT);
 
-            // 3. Filter by Subject ID (Many-to-Many Join)
-            if (subjectId != null) {
-                Join<OpenClass, Subject> subjectJoin = root.join("subjects", JoinType.INNER);
-                predicates.add(cb.equal(subjectJoin.get("id"), subjectId));
+                predicates.add(
+                        cb.like(
+                                cb.lower(subjectJoin.get("name")),
+                                "%" + subject.toLowerCase() + "%"
+                        )
+                );
             }
-
-            // 4. Filter by Max Price (Handles the Map Collection)
-            if (maxPrice != null) {
-                // Use joinMap specifically to access .value() for the Price amount
-                MapJoin<OpenClass, Integer, BigDecimal> pricingJoin = root.joinMap("priceOptions", JoinType.INNER);
-                predicates.add(cb.le(pricingJoin.value(), maxPrice));
-            }
-
-            // 5. Filter by Tutor Experience
-            if (minExp != null) {
-                Join<OpenClass, Tutor> tutorJoin = root.join("tutor", JoinType.INNER);
-                predicates.add(cb.ge(tutorJoin.get("yearsOfExperience"), minExp));
-            }
-
-            // Ensure we don't return duplicate classes if they match multiple criteria
-            query.distinct(true);
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };

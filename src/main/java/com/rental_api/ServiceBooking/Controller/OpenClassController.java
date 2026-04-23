@@ -128,4 +128,13 @@ public class OpenClassController {
         openClassService.deleteClass(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/filter")
+    public List<OpenClassResponse> filter(
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String subject
+    ) {
+        return openClassService.filterOpenClasses(location, subject);
+    }
+
 }

@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import com.rental_api.ServiceBooking.Specification.OpenClassSpecification;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -354,4 +355,15 @@ public class OpenClassServiceImpl implements OpenClassService {
         return tutorRepository.findByUserEmail(email)
                 .orElseThrow(() -> new RuntimeException("Tutor not found"));
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OpenClassResponse> filterOpenClasses(String location, String subject) {
+    return openClassRepository.findAll(
+            OpenClassSpecification.filter(location, subject)
+    ).stream()
+     .map(this::mapToResponse)
+     .toList();
+    }
+
 }

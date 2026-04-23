@@ -1,6 +1,8 @@
 package com.rental_api.ServiceBooking.Repository;
 
 import com.rental_api.ServiceBooking.Entity.BookingClass;
+import com.rental_api.ServiceBooking.Entity.Tutor;
+import com.rental_api.ServiceBooking.Entity.User;
 import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -119,4 +121,8 @@ List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId
         WHERE b.tutor.id = :tutorId
     """)
     List<BookingClass> findAllByTutorWithDetails(@Param("tutorId") Long tutorId);
+
+   
+
+    boolean existsByUserAndOpenClass_TutorAndStatus(User currentUser, Tutor tutor, BookingStatus confirmed);
 }

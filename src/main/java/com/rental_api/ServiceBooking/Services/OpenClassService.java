@@ -51,6 +51,8 @@ public interface OpenClassService {
     // =========================================================
     void deleteClass(Long id);
 
+    List<OpenClassResponse> filterOpenClasses(String location, String subject);
+
     // =========================================================
     // 🔴 CLASS STATUS CONTROL (NEW FEATURE)
     // =========================================================
