@@ -366,7 +366,7 @@ public class OpenClassServiceImpl implements OpenClassService {
         return tutorRepository.findByUserEmail(email)
                 .orElseThrow(() -> new RuntimeException("Tutor not found"));
     }
-
+//code new
     @Override
     @Transactional(readOnly = true)
     public List<OpenClassResponse> filterOpenClasses(String location, String subject) {
