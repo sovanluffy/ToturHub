@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
@@ -18,15 +19,33 @@ public class OpenClassResponse {
     private String title;
     private String description;
 
-    private String status;
+    // ================= STATUS =================
+    private String status; // OPEN, CLOSED, ARCHIVED
 
-    private Long tutorId;
-    private String tutorName;
-    private Double tutorRating;
+    // ================= VISIBILITY (IMPORTANT FIX) =================
+    private String visibilityStatus; // PUBLIC, PRIVATE
 
+    // ================= TUTOR =================
+    private TutorPublicResponse tutor;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TutorPublicResponse {
+        private Long tutorId;
+        private String name;
+        private String avatar;
+        private Double rating;
+        private String email;
+        private String phone;
+    }
+
+    // ================= LOCATION =================
     private String location;
     private String specificAddress;
 
+    // ================= CLASS INFO =================
     private List<String> subjects;
     private Set<String> learningModes;
 
@@ -36,23 +55,42 @@ public class OpenClassResponse {
 
     private String classImage;
 
+    // ================= TIMESTAMP =================
+    private LocalDateTime createdAt;
+    private LocalDateTime newUntil;
+    private boolean isNew;
+
+    // ================= STUDENTS =================
+    private List<StudentPublicResponse> confirmedStudents;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentPublicResponse {
+        private Long studentId;
+        private String studentName;
+        private String avatar;
+        private String email;
+    }
+
+    // ================= SCHEDULE =================
     private List<DayTimeSlotResponse> schedules;
 
-    // ================= INNER CLASS =================
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DayTimeSlotResponse {
-
         private Long id;
-
         private DayOfWeek day;
         private LocalTime startTime;
         private LocalTime endTime;
-
-        // 🔥 ADD THESE FOR BOOKING SYSTEM
         private Integer maxStudents;
         private Integer bookedCount;
     }
+
+    // ================= OPTIONAL (FOR COPY FEATURE) =================
+    private Boolean isCopy;
+    private Long originalClassId;
 }

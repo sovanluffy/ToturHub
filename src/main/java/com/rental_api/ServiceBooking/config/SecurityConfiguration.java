@@ -27,134 +27,128 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfiguration {
 
-        private final JwtAuthenticationFilter jwtAuthFilter;
-        private final AuthenticationProvider authenticationProvider;
-        private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-        private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+    private final JwtAuthenticationFilter jwtAuthFilter;
+    private final AuthenticationProvider authenticationProvider;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
-        @Bean
-        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-                http
-                                // ================= CORS =================
-                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                                .csrf(AbstractHttpConfigurer::disable)
+        http
+                // ================= CORS =================
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
 
-                                // ================= AUTHORIZATION =================
-                                .authorizeHttpRequests(auth -> auth
+                // ================= AUTHORIZATION =================
+                .authorizeHttpRequests(auth -> auth
 
-                                                // 🔓 Preflight
-                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // ================= PRE-FLIGHT =================
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                                                // 🔓 WebSocket (FIXED)
-                                                .requestMatchers("/ws/**").permitAll()
-                                                .requestMatchers("/ws").permitAll()
+                        // ================= WEBSOCKET =================
+                        .requestMatchers("/ws/**", "/ws").permitAll()
 
-                                                // 🔓 AUTH
-                                                .requestMatchers(
-                                                                "/api/v1/auth/**",
-                                                                "/api/auth/**",
-                                                                "/auth/**",
-                                                                "/auth/google/**")
-                                                .permitAll()
+                        // ================= AUTH =================
+                        .requestMatchers(
+                                "/api/v1/auth/**",
+                                "/api/auth/**",
+                                "/auth/**",
+                                "/auth/google/**"
+                        ).permitAll()
 
-                                                // 🔓 PUBLIC APIs
-                                                .requestMatchers(
-                                                                "/api/v1/public/**",
-                                                                "/uploads/**",
-                                                                "/api/v1/locations/**")
-                                                .permitAll()
+                        // ================= SWAGGER =================
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
 
-                                                // 🔓 SWAGGER
-                                                .requestMatchers(
-                                                                "/swagger-ui/**",
-                                                                "/swagger-ui.html",
-                                                                "/v3/api-docs/**",
-                                                                "/api-docs/**",
-                                                                "/swagger-resources/**",
-                                                                "/webjars/**")
-                                                .permitAll()
+                        // ================= PUBLIC STATIC =================
+                        .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/api/v1/locations/**").permitAll()
+                        .requestMatchers("/api/subjects/**").permitAll()
 
-                                                // 💬 CHAT APIs
-                                                .requestMatchers("/api/v1/chat/**").authenticated()
+                        // ================= OPEN CLASS PUBLIC APIs =================
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/public").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/tutor/**").permitAll()
 
-                                                // 🔓 PUBLIC GET APIs
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/public/tutor-cards").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/**").permitAll()
+                        // ================= TUTOR (WRITE ONLY) =================
+                        .requestMatchers(HttpMethod.POST, "/api/v1/open-classes/**").hasRole("TUTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/open-classes/**").hasRole("TUTOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/open-classes/**").hasRole("TUTOR")
 
-                                                // 🔥 SUBJECTS
-                                                .requestMatchers("/api/subjects/**").permitAll()
+                        // ================= CHAT =================
+                        .requestMatchers("/api/v1/chat/**").authenticated()
 
-                                                // ================= ADMIN =================
-                                                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                                                .requestMatchers("/api/categories/**").hasRole("ADMIN")
-                                                .requestMatchers("/users/**").hasRole("ADMIN")
+                        // ================= ADMIN =================
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers("/users/**").hasRole("ADMIN")
 
-                                                // ================= TUTOR =================
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("TUTOR")
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/classes/open").hasRole("TUTOR")
-                                                .requestMatchers("/api/v1/open-classes/**").hasRole("TUTOR")
+                        // ================= TUTOR SPECIFIC =================
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tutors/**").hasRole("TUTOR")
 
-                                                // ================= BOOKING =================
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**").hasRole("STUDENT")
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**").hasAnyRole("STUDENT", "ADMIN")
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/tutor/**").hasAnyRole("TUTOR", "ADMIN")
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**").hasAnyRole("TUTOR", "ADMIN")
-                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm/**").hasRole("TUTOR")
-                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/reject/**").hasRole("TUTOR")
-                                                .requestMatchers(HttpMethod.PUT, "/api/v1/bookings/**").hasAnyRole("STUDENT", "ADMIN")
-                                                .requestMatchers(HttpMethod.DELETE, "/api/v1/bookings/**").hasAnyRole("STUDENT", "ADMIN")
+                        // ================= BOOKING =================
+                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**").hasRole("STUDENT")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**").hasAnyRole("STUDENT", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/bookings/tutor/**").hasAnyRole("TUTOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**").hasAnyRole("TUTOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm/**").hasRole("TUTOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/reject/**").hasRole("TUTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/bookings/**").hasAnyRole("STUDENT", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/bookings/**").hasAnyRole("STUDENT", "ADMIN")
 
-                                                // fallback
-                                                .anyRequest().authenticated()
-                                )
+                        // ================= DEFAULT =================
+                        .anyRequest().authenticated()
+                )
 
-                                // ================= SESSION =================
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // ================= SESSION =================
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
 
-                                // ================= PROVIDER =================
-                                .authenticationProvider(authenticationProvider)
+                // ================= PROVIDER =================
+                .authenticationProvider(authenticationProvider)
 
-                                // ================= JWT FILTER =================
-                                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // ================= JWT FILTER =================
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-                                // ================= EXCEPTION =================
-                                .exceptionHandling(ex -> ex
-                                                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                                                .accessDeniedHandler(jwtAccessDeniedHandler));
+                // ================= EXCEPTION =================
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler)
+                );
 
-                return http.build();
-        }
+        return http.build();
+    }
 
-        // ================= CORS (ALLOW ALL FIX) =================
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
+    // ================= CORS CONFIG =================
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
 
-                CorsConfiguration configuration = new CorsConfiguration();
+        CorsConfiguration configuration = new CorsConfiguration();
 
-                // ✅ allow all origins (WebSocket + API)
-                configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
-                configuration.setAllowedMethods(List.of(
-                                "GET",
-                                "POST",
-                                "PUT",
-                                "DELETE",
-                                "PATCH",
-                                "OPTIONS"));
+        configuration.setAllowedMethods(List.of(
+                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        ));
 
-                configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowedHeaders(List.of("*"));
 
-                configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(true);
 
-                configuration.setMaxAge(3600L);
+        configuration.setMaxAge(3600L);
 
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/**", configuration);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-                return source;
-        }
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
 }
