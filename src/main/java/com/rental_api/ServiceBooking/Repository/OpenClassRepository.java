@@ -1,11 +1,9 @@
 package com.rental_api.ServiceBooking.Repository;
 
-import com.rental_api.ServiceBooking.Entity.BookingClass;
-import com.rental_api.ServiceBooking.Entity.OpenClass;
+import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Entity.OpenClass.ClassStatus;
 import com.rental_api.ServiceBooking.Entity.OpenClass.LearningMode;
 import com.rental_api.ServiceBooking.Entity.OpenClass.VisibilityStatus;
-import com.rental_api.ServiceBooking.Entity.Tutor;
 
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
@@ -31,23 +29,49 @@ public interface OpenClassRepository extends JpaRepository<OpenClass, Long>,
             ClassStatus status
     );
 
-    List<OpenClass> findByLocation_CityAndStatusAndVisibilityStatus(
-            String city,
-            ClassStatus status,
-            VisibilityStatus visibilityStatus
+    // =========================================================
+    // 🌍 PUBLIC FEED (GLOBAL HOME FEED)
+    // =========================================================
+
+    @Query("""
+        SELECT c FROM OpenClass c
+        WHERE c.status = :status
+        AND c.visibilityStatus = :visibilityStatus
+    """)
+    List<OpenClass> findByStatusAndVisibilityStatus(
+            @Param("status") ClassStatus status,
+            @Param("visibilityStatus") VisibilityStatus visibilityStatus
+    );
+
+    // OPTIONAL safer public feed (if you still want tutor filter)
+    @Query("""
+        SELECT c FROM OpenClass c
+        WHERE c.status = :status
+        AND c.visibilityStatus = :visibilityStatus
+        AND c.tutor.isPublic = true
+    """)
+    List<OpenClass> findAllPublicFeed(
+            @Param("status") ClassStatus status,
+            @Param("visibilityStatus") VisibilityStatus visibilityStatus
     );
 
     // =========================================================
     // 🎯 LEARNING MODE FILTER
     // =========================================================
 
-    List<OpenClass> findByLearningModesContainingAndStatus(
-            LearningMode mode,
-            ClassStatus status
+    @Query("""
+        SELECT c FROM OpenClass c
+        JOIN c.learningModes m
+        WHERE m = :mode
+        AND c.status = :status
+    """)
+    List<OpenClass> findByLearningMode(
+            @Param("mode") LearningMode mode,
+            @Param("status") ClassStatus status
     );
 
     // =========================================================
-    // 👤 TUTOR (OWNER VIEW - ALL CLASSES)
+    // 👤 TUTOR OWNER VIEW
     // =========================================================
 
     List<OpenClass> findByTutorId(Long tutorId);
@@ -55,16 +79,7 @@ public interface OpenClassRepository extends JpaRepository<OpenClass, Long>,
     List<OpenClass> findAllByTutorIn(List<Tutor> tutors);
 
     // =========================================================
-    // 🌍 PUBLIC CLASSES (GLOBAL)
-    // =========================================================
-
-    List<OpenClass> findByStatusAndVisibilityStatus(
-            ClassStatus status,
-            VisibilityStatus visibilityStatus
-    );
-
-    // =========================================================
-    // 🌍 PUBLIC CLASSES BY TUTOR (PROFILE PAGE FIXED)
+    // 👀 PUBLIC CLASSES BY TUTOR (PROFILE PAGE)
     // =========================================================
 
     @Query("""
@@ -92,7 +107,7 @@ public interface OpenClassRepository extends JpaRepository<OpenClass, Long>,
     long countConfirmedStudentsByClassId(@Param("classId") Long classId);
 
     // =========================================================
-    // 👥 CONFIRMED STUDENTS (NO N+1)
+    // 👥 CONFIRMED STUDENTS LIST
     // =========================================================
 
     @Query("""

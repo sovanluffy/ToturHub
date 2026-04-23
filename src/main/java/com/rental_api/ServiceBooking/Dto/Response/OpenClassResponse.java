@@ -15,15 +15,14 @@ import java.util.Set;
 @AllArgsConstructor
 public class OpenClassResponse {
 
+    // ================= BASIC INFO =================
     private Long classId;
     private String title;
     private String description;
 
     // ================= STATUS =================
-    private String status; // OPEN, CLOSED, ARCHIVED
-
-    // ================= VISIBILITY (IMPORTANT FIX) =================
-    private String visibilityStatus; // PUBLIC, PRIVATE
+    private String status;
+    private String visibilityStatus;
 
     // ================= TUTOR =================
     private TutorPublicResponse tutor;
@@ -55,9 +54,11 @@ public class OpenClassResponse {
 
     private String classImage;
 
-    // ================= TIMESTAMP =================
+    // ================= TIMESTAMPS =================
     private LocalDateTime createdAt;
     private LocalDateTime newUntil;
+
+    // ✅ FIXED FIELD (THIS replaces your broken `.newClass(...)`)
     private boolean isNew;
 
     // ================= STUDENTS =================
@@ -90,7 +91,7 @@ public class OpenClassResponse {
         private Integer bookedCount;
     }
 
-    // ================= OPTIONAL (FOR COPY FEATURE) =================
+    // ================= COPY FEATURE =================
     private Boolean isCopy;
     private Long originalClassId;
 }

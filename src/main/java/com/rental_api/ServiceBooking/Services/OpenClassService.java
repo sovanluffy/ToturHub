@@ -53,10 +53,6 @@ public interface OpenClassService {
 
     List<OpenClassResponse> filterOpenClasses(String location, String subject);
 
-    // =========================================================
-    // 🔴 CLASS STATUS CONTROL (NEW FEATURE)
-    // =========================================================
-
     OpenClassResponse endClass(Long id);
 
     OpenClassResponse reopenClass(Long id);

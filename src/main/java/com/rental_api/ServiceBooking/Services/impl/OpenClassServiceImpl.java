@@ -43,6 +43,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
 
         Tutor tutor = getCurrentTutor();
+
         OpenClass entity = new OpenClass();
 
         if (imageFile != null && !imageFile.isEmpty()) {
@@ -72,6 +73,7 @@ public class OpenClassServiceImpl implements OpenClassService {
         entity.setBasePrice(request.getBasePrice());
         entity.setMaxStudents(request.getMaxStudents());
 
+        // learning modes
         if (request.getLearningModes() != null) {
             entity.setLearningModes(
                     request.getLearningModes()
@@ -91,6 +93,7 @@ public class OpenClassServiceImpl implements OpenClassService {
 
         OpenClass saved = openClassRepository.save(entity);
 
+        // schedules
         if (request.getDayTimeSlots() != null && !request.getDayTimeSlots().isEmpty()) {
 
             List<DayTimeSlot> slots = request.getDayTimeSlots().stream()
@@ -102,7 +105,7 @@ public class OpenClassServiceImpl implements OpenClassService {
                             .bookedCount(0)
                             .openClass(saved)
                             .build())
-                    .collect(Collectors.toList());
+                    .toList();
 
             dayTimeSlotRepository.saveAll(slots);
             saved.setDayTimeSlots(slots);
@@ -155,37 +158,42 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // PUBLIC
+    // PUBLIC FEED
     // =========================================================
 
     @Override
     public List<OpenClassResponse> getAllPublicCards() {
-        return openClassRepository
-                .findByStatusAndVisibilityStatus(
+        return openClassRepository.findAllPublicFeed(
                         OpenClass.ClassStatus.OPEN,
                         OpenClass.VisibilityStatus.PUBLIC
                 )
                 .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
+
+    // =========================================================
+    // TUTOR CLASSES
+    // =========================================================
 
     @Override
     public List<OpenClassResponse> findByTutorId(Long tutorId) {
         return openClassRepository.findByTutorId(tutorId)
                 .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     public List<OpenClassResponse> getPublicClassesByTutor(Long tutorId) {
-        return openClassRepository.findByTutorId(tutorId)
+        return openClassRepository.findPublicClassesByTutorId(
+                        tutorId,
+                        OpenClass.ClassStatus.OPEN,
+                        OpenClass.VisibilityStatus.PUBLIC
+                )
                 .stream()
-                .filter(c -> c.getVisibilityStatus() == OpenClass.VisibilityStatus.PUBLIC)
-                .filter(c -> c.getStatus() == OpenClass.ClassStatus.OPEN)
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     // =========================================================
@@ -225,7 +233,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // COPY CLASS (FIXED 🔥 NO SHARED COLLECTION BUG)
+    // COPY CLASS (SAFE DEEP COPY)
     // =========================================================
 
     @Override
@@ -248,26 +256,19 @@ public class OpenClassServiceImpl implements OpenClassService {
         copy.setMaxStudents(original.getMaxStudents());
         copy.setClassImage(original.getClassImage());
 
-        // ✅ FIX: deep copy collections (NO shared reference)
-        copy.setSubjects(
-                original.getSubjects() != null
-                        ? new ArrayList<>(original.getSubjects())
-                        : new ArrayList<>()
-        );
+        copy.setSubjects(original.getSubjects() != null
+                ? new ArrayList<>(original.getSubjects())
+                : new ArrayList<>());
 
-        copy.setLearningModes(
-                original.getLearningModes() != null
-                        ? new HashSet<>(original.getLearningModes())
-                        : new HashSet<>()
-        );
+        copy.setLearningModes(original.getLearningModes() != null
+                ? new HashSet<>(original.getLearningModes())
+                : new HashSet<>());
 
-        // reset runtime data
         copy.setStatus(OpenClass.ClassStatus.OPEN);
         copy.setVisibilityStatus(OpenClass.VisibilityStatus.PUBLIC);
 
         OpenClass saved = openClassRepository.save(copy);
 
-        // copy schedule safely
         if (original.getDayTimeSlots() != null) {
 
             List<DayTimeSlot> slots = original.getDayTimeSlots().stream()
@@ -279,7 +280,7 @@ public class OpenClassServiceImpl implements OpenClassService {
                             .bookedCount(0)
                             .openClass(saved)
                             .build())
-                    .collect(Collectors.toList());
+                    .toList();
 
             dayTimeSlotRepository.saveAll(slots);
             saved.setDayTimeSlots(slots);
@@ -289,19 +290,20 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // MAPPER
+    // MAPPER (FIXED NULL SAFE + isNew FIX)
     // =========================================================
 
     private OpenClassResponse mapToResponse(OpenClass e) {
 
-        long confirmedCount =
-                openClassRepository.countConfirmedStudentsByClassId(e.getId());
+        long confirmedCount = openClassRepository.countConfirmedStudentsByClassId(e.getId());
 
         return OpenClassResponse.builder()
                 .classId(e.getId())
                 .title(e.getTitle())
                 .description(e.getDescription())
-                .status(e.getStatus().name())
+                .status(e.getStatus() != null ? e.getStatus().name() : null)
+                .visibilityStatus(e.getVisibilityStatus() != null ? e.getVisibilityStatus().name() : null)
+
                 .tutor(OpenClassResponse.TutorPublicResponse.builder()
                         .tutorId(e.getTutor().getId())
                         .name(e.getTutor().getUser().getFullname())
@@ -310,21 +312,30 @@ public class OpenClassServiceImpl implements OpenClassService {
                         .email(e.getTutor().getUser().getEmail())
                         .phone(e.getTutor().getUser().getPhone())
                         .build())
+
                 .location(e.getLocation().getDistrict() + ", " + e.getLocation().getCity())
                 .specificAddress(e.getSpecificAddress())
+
                 .subjects(e.getSubjects() != null
                         ? e.getSubjects().stream().map(Subject::getName).toList()
                         : List.of())
+
                 .learningModes(e.getLearningModes() != null
                         ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet())
                         : Set.of())
+
                 .basePrice(e.getBasePrice())
                 .maxStudents(e.getMaxStudents())
                 .currentStudents((int) confirmedCount)
                 .classImage(e.getClassImage())
+
                 .schedules(e.getDayTimeSlots() != null
                         ? e.getDayTimeSlots().stream().map(this::mapSlot).toList()
                         : List.of())
+
+                // ✅ FIXED ERROR HERE
+                .isNew(e.isNew())
+
                 .build();
     }
 
