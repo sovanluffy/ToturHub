@@ -1,5 +1,6 @@
 package com.rental_api.ServiceBooking.Dto.Response;
 
+import com.rental_api.ServiceBooking.Entity.Enum.DurationType;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -19,10 +20,17 @@ public class OpenClassResponse {
     private Long classId;
     private String title;
     private String description;
+    private String classImage;
 
     // ================= STATUS =================
     private String status;
     private String visibilityStatus;
+
+    // ================= DURATION (🔥 FIXED MISSING PART) =================
+    private LocalDateTime startDate;
+    private LocalDateTime endDate;
+    private DurationType durationType;
+    private Integer durationValue;
 
     // ================= TUTOR =================
     private TutorPublicResponse tutor;
@@ -52,13 +60,10 @@ public class OpenClassResponse {
     private Integer maxStudents;
     private Integer currentStudents;
 
-    private String classImage;
-
     // ================= TIMESTAMPS =================
     private LocalDateTime createdAt;
     private LocalDateTime newUntil;
 
-    // ✅ FIXED FIELD (THIS replaces your broken `.newClass(...)`)
     private boolean isNew;
 
     // ================= STUDENTS =================

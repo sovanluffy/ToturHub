@@ -10,7 +10,9 @@ import java.util.List;
 
 public interface BookingService {
 
-    /* ================= BOOKING CORE ================= */
+    // =====================================================
+    // ================= BOOKING CORE ======================
+    // =====================================================
 
     BookingResponse bookClass(Long openClassId, BookingClassRequest request);
 
@@ -18,8 +20,9 @@ public interface BookingService {
 
     BookingResponse rejectBooking(Long bookingId);
 
-
-    /* ================= BOOKING GETTERS ================= */
+    // =====================================================
+    // ================= BOOKING QUERIES ===================
+    // =====================================================
 
     List<BookingResponse> getBookingsByUserId(Long userId);
 
@@ -33,8 +36,9 @@ public interface BookingService {
 
     Long getMyPendingBookingsCount();
 
-
-    /* ================= CHAT ================= */
+    // =====================================================
+    // ================= CHAT SYSTEM =======================
+    // =====================================================
 
     ChatResponse sendMessage(String senderEmail, ChatRequest request);
 
@@ -44,8 +48,9 @@ public interface BookingService {
 
     Long getUnreadMessageCount(String email);
 
-
-    /* ================= CHAT CONTACTS ================= */
+    // =====================================================
+    // ================= CHAT CONTACTS =====================
+    // =====================================================
 
     List<ChatContactResponse> getChatContacts(String email);
 

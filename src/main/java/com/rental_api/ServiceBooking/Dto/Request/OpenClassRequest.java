@@ -1,9 +1,11 @@
 package com.rental_api.ServiceBooking.Dto.Request;
 
+import com.rental_api.ServiceBooking.Entity.Enum.DurationType;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -13,6 +15,7 @@ import java.util.List;
 @Builder
 public class OpenClassRequest {
 
+    // ================= BASIC INFO =================
     private String title;
     private String description;
 
@@ -20,16 +23,27 @@ public class OpenClassRequest {
 
     private String status;
 
+    // ================= LOCATION =================
     private Long locationId;
     private String specificAddress;
 
+    // ================= PRICE =================
     private BigDecimal basePrice;
 
-    private Integer maxStudents; // 🔥 CLASS LEVEL LIMIT
+    private Integer maxStudents; // CLASS LEVEL LIMIT
 
+    // ================= LEARNING =================
     private List<String> learningModes;
 
+    // ================= SCHEDULE =================
     private List<DayTimeSlotRequest> dayTimeSlots;
+
+    // ================= CLASS DURATION (🔥 NEW ADDED) =================
+    private LocalDateTime startDate;
+
+    private DurationType durationType;
+
+    private Integer durationValue;
 
     // ================= SLOT DTO =================
     @Data
@@ -42,7 +56,7 @@ public class OpenClassRequest {
         private LocalTime startTime;
         private LocalTime endTime;
 
-        // 🔥 ADD THIS (IMPORTANT)
-        private Integer maxStudents; // SLOT LEVEL LIMIT
+        // SLOT LEVEL LIMIT (override class max if needed)
+        private Integer maxStudents;
     }
 }

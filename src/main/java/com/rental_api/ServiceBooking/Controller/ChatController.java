@@ -5,10 +5,12 @@ import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -19,90 +21,96 @@ public class ChatController {
 
     private final BookingService bookingService;
 
-    // ================= SEND MESSAGE =================
-    @PostMapping("/send")
-    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
-    public ResponseEntity<ChatResponse> sendMessage(
-            @RequestBody ChatRequest request
-    ) {
-        String email = SecurityContextHolder.getContext()
+    // =====================================================
+    // CURRENT USER
+    // =====================================================
+    private String getCurrentEmail() {
+        return SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getName();
+    }
+
+    // =====================================================
+    // SEND MESSAGE (TEXT + FILE + CLOUDINARY)
+    // =====================================================
+    @PostMapping(
+            value = "/send",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<ChatResponse> sendMessage(
+            @RequestParam("recipientId") Long recipientId,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam(value = "bookingId", required = false) Long bookingId,
+            @RequestParam(value = "file", required = false) MultipartFile file
+    ) {
+
+        ChatRequest request = new ChatRequest();
+        request.setRecipientId(recipientId);
+        request.setContent(content);
+        request.setBookingId(bookingId);
+        request.setFile(file);
 
         return ResponseEntity.ok(
-                bookingService.sendMessage(email, request)
+                bookingService.sendMessage(getCurrentEmail(), request)
         );
     }
 
-    // ================= CHAT HISTORY =================
+    // =====================================================
+    // CHAT HISTORY
+    // =====================================================
     @GetMapping("/history/{otherUserId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<ChatResponse>> getChatHistory(
             @PathVariable Long otherUserId
     ) {
-        String email = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
         return ResponseEntity.ok(
-                bookingService.getChatHistory(email, otherUserId)
+                bookingService.getChatHistory(getCurrentEmail(), otherUserId)
         );
     }
 
-    // ================= MARK AS READ =================
+    // =====================================================
+    // MARK AS READ
+    // =====================================================
     @PutMapping("/read/{senderId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Void> markAsRead(
             @PathVariable Long senderId
     ) {
-        String email = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
-        bookingService.markMessagesAsRead(email, senderId);
-
+        bookingService.markMessagesAsRead(getCurrentEmail(), senderId);
         return ResponseEntity.ok().build();
     }
 
-    // ================= UNREAD COUNT =================
+    // =====================================================
+    // UNREAD COUNT
+    // =====================================================
     @GetMapping("/unread-count")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Long> getUnreadCount() {
-
-        String email = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
         return ResponseEntity.ok(
-                bookingService.getUnreadMessageCount(email)
+                bookingService.getUnreadMessageCount(getCurrentEmail())
         );
     }
 
-    // ================= ⭐ CHAT CONTACT LIST (IMPORTANT FIX) =================
+    // =====================================================
+    // CHAT CONTACTS
+    // =====================================================
     @GetMapping("/contacts")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<ChatContactResponse>> getChatContacts() {
-
-        String email = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
         return ResponseEntity.ok(
-                bookingService.getChatContacts(email)
+                bookingService.getChatContacts(getCurrentEmail())
         );
     }
 
-    // ================= CHAT USER LIST (OPTIONAL DEBUG) =================
+    // =====================================================
+    // CHAT USERS (DEBUG)
+    // =====================================================
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<Long>> getChatUserList() {
-
-        String email = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
         return ResponseEntity.ok(
-                bookingService.getChatUserList(email)
+                bookingService.getChatUserList(getCurrentEmail())
         );
     }
 }

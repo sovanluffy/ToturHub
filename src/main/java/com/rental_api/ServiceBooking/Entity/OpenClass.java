@@ -1,5 +1,6 @@
 package com.rental_api.ServiceBooking.Entity;
 
+import com.rental_api.ServiceBooking.Entity.Enum.DurationType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -65,9 +66,18 @@ public class OpenClass {
     @Enumerated(EnumType.STRING)
     private Set<LearningMode> learningModes = new HashSet<>();
 
-    // ================= SCHEDULE =================
+    // ================= SCHEDULE (WEEKLY) =================
     @OneToMany(mappedBy = "openClass", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DayTimeSlot> dayTimeSlots = new ArrayList<>();
+
+    // ================= CLASS DURATION =================
+    private LocalDateTime startDate;
+    private LocalDateTime endDate;
+
+    @Enumerated(EnumType.STRING)
+    private DurationType durationType;
+
+    private Integer durationValue;
 
     // ================= TIMESTAMP =================
     private LocalDateTime createdAt;
@@ -77,12 +87,31 @@ public class OpenClass {
     public void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.newUntil = this.createdAt.plusHours(24);
+
+        // AUTO CALCULATE END DATE IF NOT SET
+        if (this.startDate != null && this.endDate == null) {
+            this.endDate = calculateEndDate();
+        }
+    }
+
+    // ================= BUSINESS LOGIC =================
+    public LocalDateTime calculateEndDate() {
+        if (startDate == null || durationType == null || durationValue == null) {
+            return null;
+        }
+
+        return switch (durationType) {
+            case DAYS -> startDate.plusDays(durationValue);
+            case WEEKS -> startDate.plusWeeks(durationValue);
+            case MONTHS -> startDate.plusMonths(durationValue);
+        };
     }
 
     public boolean isNew() {
         return newUntil != null && LocalDateTime.now().isBefore(newUntil);
     }
 
+    // ================= ENUMS =================
     public enum ClassStatus {
         OPEN, CLOSED, FULL, ARCHIVED
     }

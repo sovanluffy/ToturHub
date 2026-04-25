@@ -4,8 +4,7 @@ import com.rental_api.ServiceBooking.Entity.BookingClass;
 import com.rental_api.ServiceBooking.Entity.Tutor;
 import com.rental_api.ServiceBooking.Entity.User;
 import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
@@ -13,21 +12,27 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<BookingClass, Long> {
 
-    // ================= USER =================
+    // =====================================================
+    // ================= USER ==============================
+    // =====================================================
 
     List<BookingClass> findByUser_Id(Long userId);
 
-    boolean existsByUser_IdAndSchedule_Id(Long userId, Long scheduleId);
-
     long countByUser_Id(Long userId);
 
+    List<BookingClass> findByUser_IdAndStatus(Long userId, BookingStatus status);
 
-    // ================= CLASS =================
+    // =====================================================
+    // ================= CLASS =============================
+    // =====================================================
 
     List<BookingClass> findByOpenClass_Id(Long classId);
 
+    long countByOpenClass_Id(Long classId);
 
-    // ================= TUTOR =================
+    // =====================================================
+    // ================= TUTOR =============================
+    // =====================================================
 
     List<BookingClass> findByTutor_Id(Long tutorId);
 
@@ -35,17 +40,17 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
 
     long countByTutor_IdAndStatus(Long tutorId, BookingStatus status);
 
+    List<BookingClass> findByTutor_IdAndStatus(Long tutorId, BookingStatus status);
 
-    // ================= STATUS FILTER =================
+    // =====================================================
+    // ================= STATUS ============================
+    // =====================================================
 
     List<BookingClass> findByStatus(BookingStatus status);
 
-    List<BookingClass> findByTutor_IdAndStatus(Long tutorId, BookingStatus status);
-
-    List<BookingClass> findByUser_IdAndStatus(Long userId, BookingStatus status);
-
-
-    // ================= ⭐ RULE CHECK (IMPORTANT FIX) =================
+    // =====================================================
+    // ================= DUPLICATE CHECK ===================
+    // =====================================================
 
     boolean existsByUser_IdAndSchedule_IdAndStatusIn(
             Long userId,
@@ -53,15 +58,23 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
             List<BookingStatus> statuses
     );
 
-
-    // ================= JPQL QUERIES =================
-
+    // ✅ FIXED CLEAN DUPLICATE CHECK (USE THIS IN SERVICE)
     @Query("""
-        SELECT b FROM BookingClass b
-        WHERE b.tutor.id = :tutorId
+        SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
+        FROM BookingClass b
+        WHERE b.user = :user
+        AND b.tutor = :tutor
+        AND b.status = :status
     """)
-    List<BookingClass> findTutorBookings(@Param("tutorId") Long tutorId);
+    boolean existsDuplicateBooking(
+            @Param("user") User user,
+            @Param("tutor") Tutor tutor,
+            @Param("status") BookingStatus status
+    );
 
+    // =====================================================
+    // ================= JPQL BASIC ========================
+    // =====================================================
 
     @Query("""
         SELECT b FROM BookingClass b
@@ -69,8 +82,15 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
     """)
     List<BookingClass> findUserBookings(@Param("userId") Long userId);
 
+    @Query("""
+        SELECT b FROM BookingClass b
+        WHERE b.tutor.id = :tutorId
+    """)
+    List<BookingClass> findTutorBookings(@Param("tutorId") Long tutorId);
 
-    // ================= 🔥 JOIN FETCH (FIX LAZY LOADING) =================
+    // =====================================================
+    // ================= FETCH DETAILS ======================
+    // =====================================================
 
     @Query("""
         SELECT b FROM BookingClass b
@@ -81,16 +101,6 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
     """)
     Optional<BookingClass> findByIdWithDetails(@Param("id") Long id);
 
-
-    @Query("""
-        SELECT b FROM BookingClass b
-        JOIN FETCH b.user
-        JOIN FETCH b.openClass
-        JOIN FETCH b.schedule
-    """)
-    List<BookingClass> findAllWithDetails();
-
-
     @Query("""
         SELECT b FROM BookingClass b
         JOIN FETCH b.user
@@ -99,20 +109,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         WHERE b.user.id = :userId
     """)
     List<BookingClass> findAllByUserWithDetails(@Param("userId") Long userId);
-@Query("""
-    SELECT COUNT(b)
-    FROM BookingClass b
-    WHERE b.openClass.id = :classId
-    AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
-""")
-long countConfirmedByClassId(@Param("classId") Long classId);
-@Query("""
-    SELECT b FROM BookingClass b
-    JOIN FETCH b.user
-    WHERE b.openClass.id = :classId
-    AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
-""")
-List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId);
+
     @Query("""
         SELECT b FROM BookingClass b
         JOIN FETCH b.user
@@ -122,7 +119,37 @@ List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId
     """)
     List<BookingClass> findAllByTutorWithDetails(@Param("tutorId") Long tutorId);
 
-   
+    @Query("""
+        SELECT b FROM BookingClass b
+        JOIN FETCH b.user
+        JOIN FETCH b.openClass
+        JOIN FETCH b.schedule
+    """)
+    List<BookingClass> findAllWithDetails();
 
-    boolean existsByUserAndOpenClass_TutorAndStatus(User currentUser, Tutor tutor, BookingStatus confirmed);
+    // =====================================================
+    // ================= CONFIRMED STATS ===================
+    // =====================================================
+
+    @Query("""
+        SELECT COUNT(b)
+        FROM BookingClass b
+        WHERE b.openClass.id = :classId
+        AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
+    """)
+    long countConfirmedByClassId(@Param("classId") Long classId);
+
+    @Query("""
+        SELECT b FROM BookingClass b
+        JOIN FETCH b.user
+        WHERE b.openClass.id = :classId
+        AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
+    """)
+    List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId);
+
+    boolean existsByUser_IdAndTutor_IdAndStatus(
+        Long userId,
+        Long tutorId,
+        BookingStatus status
+);
 }

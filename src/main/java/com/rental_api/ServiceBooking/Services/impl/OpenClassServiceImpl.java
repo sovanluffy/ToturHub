@@ -6,7 +6,6 @@ import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 import com.rental_api.ServiceBooking.Services.OpenClassService;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -73,7 +72,17 @@ public class OpenClassServiceImpl implements OpenClassService {
         entity.setBasePrice(request.getBasePrice());
         entity.setMaxStudents(request.getMaxStudents());
 
-        // learning modes
+        // ================= DURATION (🔥 ADDED) =================
+        entity.setStartDate(request.getStartDate());
+        entity.setDurationType(request.getDurationType());
+        entity.setDurationValue(request.getDurationValue());
+
+        // auto calculate end date
+        if (request.getStartDate() != null) {
+            entity.setEndDate(entity.calculateEndDate());
+        }
+
+        // ================= LEARNING MODES =================
         if (request.getLearningModes() != null) {
             entity.setLearningModes(
                     request.getLearningModes()
@@ -93,7 +102,7 @@ public class OpenClassServiceImpl implements OpenClassService {
 
         OpenClass saved = openClassRepository.save(entity);
 
-        // schedules
+        // ================= SCHEDULES =================
         if (request.getDayTimeSlots() != null && !request.getDayTimeSlots().isEmpty()) {
 
             List<DayTimeSlot> slots = request.getDayTimeSlots().stream()
@@ -147,7 +156,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // GET BY ID
+    // GET
     // =========================================================
 
     @Override
@@ -156,10 +165,6 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .map(this::mapToResponse)
                 .orElseThrow(() -> new RuntimeException("Class not found"));
     }
-
-    // =========================================================
-    // PUBLIC FEED
-    // =========================================================
 
     @Override
     public List<OpenClassResponse> getAllPublicCards() {
@@ -171,10 +176,6 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .map(this::mapToResponse)
                 .toList();
     }
-
-    // =========================================================
-    // TUTOR CLASSES
-    // =========================================================
 
     @Override
     public List<OpenClassResponse> findByTutorId(Long tutorId) {
@@ -197,7 +198,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // END CLASS
+    // END / REOPEN
     // =========================================================
 
     @Override
@@ -214,10 +215,6 @@ public class OpenClassServiceImpl implements OpenClassService {
         return mapToResponse(openClassRepository.save(entity));
     }
 
-    // =========================================================
-    // REOPEN CLASS
-    // =========================================================
-
     @Override
     @Transactional
     public OpenClassResponse reopenClass(Long id) {
@@ -233,7 +230,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // COPY CLASS (SAFE DEEP COPY)
+    // COPY
     // =========================================================
 
     @Override
@@ -255,6 +252,12 @@ public class OpenClassServiceImpl implements OpenClassService {
         copy.setBasePrice(original.getBasePrice());
         copy.setMaxStudents(original.getMaxStudents());
         copy.setClassImage(original.getClassImage());
+
+        // no duration copy (fresh class)
+        copy.setStartDate(null);
+        copy.setEndDate(null);
+        copy.setDurationType(null);
+        copy.setDurationValue(null);
 
         copy.setSubjects(original.getSubjects() != null
                 ? new ArrayList<>(original.getSubjects())
@@ -290,7 +293,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     }
 
     // =========================================================
-    // MAPPER (FIXED NULL SAFE + isNew FIX)
+    // MAPPER
     // =========================================================
 
     private OpenClassResponse mapToResponse(OpenClass e) {
@@ -301,9 +304,18 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .classId(e.getId())
                 .title(e.getTitle())
                 .description(e.getDescription())
+                .classImage(e.getClassImage())
+
                 .status(e.getStatus() != null ? e.getStatus().name() : null)
                 .visibilityStatus(e.getVisibilityStatus() != null ? e.getVisibilityStatus().name() : null)
 
+                // ================= DURATION =================
+                .startDate(e.getStartDate())
+                .endDate(e.getEndDate())
+                .durationType(e.getDurationType())
+                .durationValue(e.getDurationValue())
+
+                // tutor
                 .tutor(OpenClassResponse.TutorPublicResponse.builder()
                         .tutorId(e.getTutor().getId())
                         .name(e.getTutor().getUser().getFullname())
@@ -327,13 +339,11 @@ public class OpenClassServiceImpl implements OpenClassService {
                 .basePrice(e.getBasePrice())
                 .maxStudents(e.getMaxStudents())
                 .currentStudents((int) confirmedCount)
-                .classImage(e.getClassImage())
 
                 .schedules(e.getDayTimeSlots() != null
                         ? e.getDayTimeSlots().stream().map(this::mapSlot).toList()
                         : List.of())
 
-                // ✅ FIXED ERROR HERE
                 .isNew(e.isNew())
 
                 .build();
@@ -366,15 +376,18 @@ public class OpenClassServiceImpl implements OpenClassService {
         return tutorRepository.findByUserEmail(email)
                 .orElseThrow(() -> new RuntimeException("Tutor not found"));
     }
-//code new
+
+    // =========================================================
+    // FILTER
+    // =========================================================
+
     @Override
     @Transactional(readOnly = true)
     public List<OpenClassResponse> filterOpenClasses(String location, String subject) {
-    return openClassRepository.findAll(
-            OpenClassSpecification.filter(location, subject)
-    ).stream()
-     .map(this::mapToResponse)
-     .toList();
+        return openClassRepository.findAll(
+                        OpenClassSpecification.filter(location, subject)
+                ).stream()
+                .map(this::mapToResponse)
+                .toList();
     }
-
 }
