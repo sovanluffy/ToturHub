@@ -52,15 +52,13 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // =====================================================
-    // ================= BOOKING ===========================
+    // ================= BOOKING LOGIC =====================
     // =====================================================
 
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
-
         User student = getCurrentUser();
-
         OpenClass openClass = openClassRepository.findById(openClassId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
 
@@ -98,72 +96,24 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public BookingResponse confirmBooking(Long bookingId) {
-
-        User tutorUser = getCurrentUser();
-
         BookingClass booking = bookingRepository.findByIdWithDetails(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-
         booking.setStatus(BookingStatus.CONFIRMED);
-
         return mapToResponse(bookingRepository.save(booking));
     }
 
     @Override
     public BookingResponse rejectBooking(Long bookingId) {
-
         BookingClass booking = bookingRepository.findByIdWithDetails(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-
         booking.setStatus(BookingStatus.REJECTED);
-
         return mapToResponse(bookingRepository.save(booking));
-    }
-
-    // =====================================================
-    // ================= REQUIRED SERVICE METHODS ==========
-    // =====================================================
-
-    @Override
-    public List<BookingResponse> getBookingsByUserId(Long userId) {
-        return bookingRepository.findAllByUserWithDetails(userId)
-                .stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getBookingsByClassId(Long classId) {
-        return bookingRepository.findByOpenClass_Id(classId)
-                .stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getBookingsByTutorId(Long tutorId) {
-        return bookingRepository.findAllByTutorWithDetails(tutorId)
-                .stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getMyBookings() {
-        User user = getCurrentUser();
-        return bookingRepository.findAllByUserWithDetails(user.getId())
-                .stream().map(this::mapToResponse).toList();
-    }
-
-    @Override
-    public List<BookingResponse> getMyTutorBookings() {
-        User user = getCurrentUser();
-        Tutor tutor = getTutor(user);
-
-        return bookingRepository.findAllByTutorWithDetails(tutor.getId())
-                .stream().map(this::mapToResponse).toList();
     }
 
     @Override
     public Long getMyPendingBookingsCount() {
         User user = getCurrentUser();
-
         if (user.getTutor() == null) return 0L;
-
         return bookingRepository.countByTutor_IdAndStatus(
                 user.getTutor().getId(),
                 BookingStatus.PENDING
@@ -171,54 +121,64 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // =====================================================
-    // ================= CHAT + IMAGE + CLOUDINARY =========
+    // ================= CHAT + MEDIA SERVICE ==============
     // =====================================================
 
     @Override
     public ChatResponse sendMessage(String senderEmail, ChatRequest request) {
-
         User sender = getCurrentUser();
-
         User recipient = userRepository.findById(request.getRecipientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
 
         String mediaUrl = null;
+        String messageTypeStr = "USER";
 
-        // ✅ CLOUDINARY UPLOAD
+        // 1. CLOUDINARY UPLOAD
         if (request.getFile() != null && !request.getFile().isEmpty()) {
             try {
+                String contentType = request.getFile().getContentType();
                 Map upload = cloudinary.uploader().upload(
                         request.getFile().getBytes(),
                         ObjectUtils.asMap(
-                                "folder", "chat_media",
+                                "folder", "tutorhub_chat",
                                 "resource_type", "auto"
                         )
                 );
                 mediaUrl = upload.get("secure_url").toString();
+
+                if (contentType != null) {
+                    if (contentType.startsWith("image")) messageTypeStr = "IMAGE";
+                    else if (contentType.startsWith("audio")) messageTypeStr = "AUDIO";
+                    else if (contentType.startsWith("video")) messageTypeStr = "VIDEO";
+                }
             } catch (IOException e) {
-                throw new RuntimeException("Cloudinary upload failed");
+                throw new RuntimeException("Media upload to Cloudinary failed");
             }
         }
 
-        MessageType type = request.hasFile()
-                ? request.resolveType()
-                : MessageType.USER;
+        // 2. PREVENT NULL CONTENT ERROR (Fixes 400 Bad Request)
+        String content = request.getContent();
+        if (content == null || content.trim().isEmpty()) {
+            if ("IMAGE".equals(messageTypeStr)) content = "Sent an image";
+            else if ("AUDIO".equals(messageTypeStr)) content = "Sent an audio message";
+            else content = ""; // Ensuring column constraint is met
+        }
 
+        // 3. PERSIST MESSAGE
         ChatMessage message = ChatMessage.builder()
                 .sender(sender)
                 .recipient(recipient)
-                .content(request.getContent())
-                .type(type)
+                .content(content)
+                .type(MessageType.valueOf(messageTypeStr))
                 .mediaUrl(mediaUrl)
-                .booking(null)
                 .read(false)
                 .timestamp(Instant.now())
                 .build();
 
         ChatMessage saved = chatMessageRepository.save(message);
 
+        // 4. NOTIFY VIA WEBSOCKET
         ChatResponse response = mapToChatResponse(saved);
-
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
@@ -231,21 +191,14 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
         User me = getCurrentUser();
-
         return chatMessageRepository.findChatHistory(me.getId(), otherUserId)
                 .stream().map(this::mapToChatResponse).toList();
     }
 
     @Override
     public void markMessagesAsRead(String recipientEmail, Long senderId) {
-
         User me = getCurrentUser();
-
-        List<ChatMessage> unread =
-                chatMessageRepository.findByRecipient_IdAndSender_IdAndReadFalse(
-                        me.getId(), senderId
-                );
-
+        List<ChatMessage> unread = chatMessageRepository.findByRecipient_IdAndSender_IdAndReadFalse(me.getId(), senderId);
         unread.forEach(m -> m.setRead(true));
         chatMessageRepository.saveAll(unread);
     }
@@ -257,63 +210,47 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // =====================================================
-    // ================= CONTACTS ==========================
+    // ================= CONTACTS LOGIC ====================
     // =====================================================
 
     @Override
     public List<ChatContactResponse> getChatContacts(String email) {
         User me = getCurrentUser();
-
         List<ChatMessage> messages = chatMessageRepository.findAllUserMessages(me.getId());
 
         Map<Long, ChatMessage> last = new HashMap<>();
-        Map<Long, Long> unread = new HashMap<>();
+        Map<Long, Long> unreadCountMap = new HashMap<>();
 
         for (ChatMessage m : messages) {
-            Long otherId = m.getSender().getId().equals(me.getId())
-                    ? m.getRecipient().getId()
-                    : m.getSender().getId();
-
+            Long otherId = m.getSender().getId().equals(me.getId()) ? m.getRecipient().getId() : m.getSender().getId();
             last.putIfAbsent(otherId, m);
-
             if (!m.isRead() && m.getRecipient().getId().equals(me.getId())) {
-                unread.put(otherId, unread.getOrDefault(otherId, 0L) + 1);
+                unreadCountMap.put(otherId, unreadCountMap.getOrDefault(otherId, 0L) + 1);
             }
         }
 
         return last.entrySet().stream().map(e -> {
             User u = userRepository.findById(e.getKey()).orElse(null);
             ChatMessage msg = e.getValue();
-
-            ChatContactResponse r = new ChatContactResponse();
-            r.setUserId(e.getKey());
-            r.setName(u != null ? u.getFullname() : "Unknown");
-            r.setAvatar(u != null ? u.getAvatarUrl() : null);
-            r.setLastMessage(msg.getContent());
-            r.setLastTime(msg.getTimestamp().toString());
-            r.setUnreadCount(unread.getOrDefault(e.getKey(), 0L));
-
-            return r;
+            return ChatContactResponse.builder()
+                    .userId(e.getKey())
+                    .name(u != null ? u.getFullname() : "Unknown")
+                    .avatar(u != null ? u.getAvatarUrl() : null)
+                    .lastMessage(msg.getContent())
+                    .lastTime(msg.getTimestamp().toString())
+                    .unreadCount(unreadCountMap.getOrDefault(e.getKey(), 0L))
+                    .build();
         }).toList();
     }
 
     @Override
     public List<Long> getChatUserList(String email) {
-
         User me = getCurrentUser();
-
         List<ChatMessage> messages = chatMessageRepository.findAllUserMessages(me.getId());
-
         Set<Long> ids = new LinkedHashSet<>();
-
         for (ChatMessage m : messages) {
-            if (m.getSender().getId().equals(me.getId())) {
-                ids.add(m.getRecipient().getId());
-            } else {
-                ids.add(m.getSender().getId());
-            }
+            ids.add(m.getSender().getId().equals(me.getId()) ? m.getRecipient().getId() : m.getSender().getId());
         }
-
         return new ArrayList<>(ids);
     }
 
@@ -326,18 +263,18 @@ public class BookingServiceImpl implements BookingService {
                 .id(m.getId())
                 .senderId(m.getSender().getId())
                 .recipientId(m.getRecipient().getId())
+                .senderName(m.getSender().getFullname())
+                .senderAvatar(m.getSender().getAvatarUrl())
                 .content(m.getContent())
                 .mediaUrl(m.getMediaUrl())
-                .fileType(m.getType() != null ? m.getType().name() : null)
+                .fileType(m.getType() != null ? m.getType().name() : "TEXT")
+                .messageType(m.getType() != null ? m.getType().name() : "USER")
                 .timestamp(m.getTimestamp())
                 .read(m.isRead())
-                .messageType(m.getType().name())
-                .bookingId(null)
                 .build();
     }
 
     private BookingResponse mapToResponse(BookingClass b) {
-
         return BookingResponse.builder()
                 .bookingId(b.getId())
                 .userId(b.getUser().getId())
@@ -348,12 +285,7 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
-    // =====================================================
-    // ================= SYSTEM CHAT =======================
-    // =====================================================
-
     private void sendSystemChat(User sender, User recipient, String content) {
-
         ChatMessage msg = ChatMessage.builder()
                 .sender(sender)
                 .recipient(recipient)
@@ -362,7 +294,12 @@ public class BookingServiceImpl implements BookingService {
                 .read(false)
                 .timestamp(Instant.now())
                 .build();
-
         chatMessageRepository.save(msg);
     }
+
+    @Override public List<BookingResponse> getBookingsByUserId(Long userId) { return bookingRepository.findAllByUserWithDetails(userId).stream().map(this::mapToResponse).toList(); }
+    @Override public List<BookingResponse> getBookingsByClassId(Long classId) { return bookingRepository.findByOpenClass_Id(classId).stream().map(this::mapToResponse).toList(); }
+    @Override public List<BookingResponse> getBookingsByTutorId(Long tutorId) { return bookingRepository.findAllByTutorWithDetails(tutorId).stream().map(this::mapToResponse).toList(); }
+    @Override public List<BookingResponse> getMyBookings() { return bookingRepository.findAllByUserWithDetails(getCurrentUser().getId()).stream().map(this::mapToResponse).toList(); }
+    @Override public List<BookingResponse> getMyTutorBookings() { return bookingRepository.findAllByTutorWithDetails(getTutor(getCurrentUser()).getId()).stream().map(this::mapToResponse).toList(); }
 }

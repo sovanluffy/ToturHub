@@ -22,7 +22,7 @@ public class ChatController {
     private final BookingService bookingService;
 
     // =====================================================
-    // CURRENT USER
+    // UTIL: GET CURRENT AUTHENTICATED EMAIL
     // =====================================================
     private String getCurrentEmail() {
         return SecurityContextHolder.getContext()
@@ -30,9 +30,10 @@ public class ChatController {
                 .getName();
     }
 
-    // =====================================================
-    // SEND MESSAGE (TEXT + FILE + CLOUDINARY)
-    // =====================================================
+    /**
+     * SEND MESSAGE (TEXT + FILE + CLOUDINARY)
+     * Consumes multipart/form-data to allow file uploads.
+     */
     @PostMapping(
             value = "/send",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -45,6 +46,7 @@ public class ChatController {
             @RequestParam(value = "file", required = false) MultipartFile file
     ) {
 
+        // Wrap parameters into a Request DTO for the service layer
         ChatRequest request = new ChatRequest();
         request.setRecipientId(recipientId);
         request.setContent(content);
@@ -56,9 +58,10 @@ public class ChatController {
         );
     }
 
-    // =====================================================
-    // CHAT HISTORY
-    // =====================================================
+    /**
+     * CHAT HISTORY
+     * Retrieves all messages exchanged between the current user and another user.
+     */
     @GetMapping("/history/{otherUserId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<ChatResponse>> getChatHistory(
@@ -69,9 +72,10 @@ public class ChatController {
         );
     }
 
-    // =====================================================
-    // MARK AS READ
-    // =====================================================
+    /**
+     * MARK AS READ
+     * Updates the 'read' status of all unread messages from a specific sender.
+     */
     @PutMapping("/read/{senderId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Void> markAsRead(
@@ -81,9 +85,10 @@ public class ChatController {
         return ResponseEntity.ok().build();
     }
 
-    // =====================================================
-    // UNREAD COUNT
-    // =====================================================
+    /**
+     * UNREAD COUNT
+     * Gets total count of unread messages for the current user across all conversations.
+     */
     @GetMapping("/unread-count")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<Long> getUnreadCount() {
@@ -92,9 +97,10 @@ public class ChatController {
         );
     }
 
-    // =====================================================
-    // CHAT CONTACTS
-    // =====================================================
+    /**
+     * CHAT CONTACTS
+     * Returns a list of users the current user has chatted with, including last message and unread count.
+     */
     @GetMapping("/contacts")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<ChatContactResponse>> getChatContacts() {
@@ -103,9 +109,10 @@ public class ChatController {
         );
     }
 
-    // =====================================================
-    // CHAT USERS (DEBUG)
-    // =====================================================
+    /**
+     * CHAT USERS (DEBUG/LIST)
+     * Simple list of User IDs involved in conversations with the current user.
+     */
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
     public ResponseEntity<List<Long>> getChatUserList() {
