@@ -35,7 +35,6 @@ public class BookingServiceImpl implements BookingService {
     private final Cloudinary cloudinary;
 
     /* ================= UTIL HELPERS ================= */
-
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
@@ -50,7 +49,6 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /* ================= BOOKING CORE LOGIC ================= */
-
     @Override
     @Transactional
     public BookingResponse bookClass(Long openClassId, BookingClassRequest request) {
@@ -84,7 +82,6 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
-        // Notify Tutor immediately via System Chat
         sendAutoSystemChat(student, openClass.getTutor().getUser(),
                 "📌 New booking request from " + student.getFullname() + " for " + openClass.getTitle());
 
@@ -100,7 +97,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         BookingClass saved = bookingRepository.save(booking);
 
-        // ✅ AUTO CHAT: Push real-time confirmation to student's chat window
         sendAutoSystemChat(
             saved.getTutor().getUser(), 
             saved.getUser(), 
@@ -119,7 +115,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.REJECTED);
         BookingClass saved = bookingRepository.save(booking);
 
-        // ✅ AUTO CHAT: Push real-time rejection to student's chat window
         sendAutoSystemChat(
             saved.getTutor().getUser(), 
             saved.getUser(), 
@@ -130,10 +125,6 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /* ================= REAL-TIME CHAT SERVICE ================= */
-
-    /**
-     * Sends a system-generated message and pushes it via WebSocket instantly.
-     */
     private void sendAutoSystemChat(User sender, User recipient, String content) {
         ChatMessage msg = ChatMessage.builder()
                 .sender(sender)
@@ -147,7 +138,6 @@ public class BookingServiceImpl implements BookingService {
         ChatMessage saved = chatMessageRepository.save(msg);
         ChatResponse response = mapToChatResponse(saved);
         
-        // Pushing to /user/{email}/queue/messages
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
@@ -197,7 +187,6 @@ public class BookingServiceImpl implements BookingService {
         ChatMessage saved = chatMessageRepository.save(message);
         ChatResponse response = mapToChatResponse(saved);
 
-        // Real-time Push to Recipient
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
@@ -208,7 +197,6 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /* ================= QUERIES & DATA RETRIEVAL ================= */
-
     @Override
     public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
         User me = getCurrentUser();
@@ -255,7 +243,6 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /* ================= MAPPERS ================= */
-
     private ChatResponse mapToChatResponse(ChatMessage m) {
         return ChatResponse.builder()
                 .id(m.getId())
@@ -271,6 +258,7 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
+    // FIXED MAPPER - Now includes classId and scheduleId
     private BookingResponse mapToResponse(BookingClass b) {
         return BookingResponse.builder()
                 .bookingId(b.getId())
@@ -279,6 +267,11 @@ public class BookingServiceImpl implements BookingService {
                 .studentEmail(b.getUser().getEmail())
                 .studentPhone(b.getUser().getPhone())
                 .studentAvatar(b.getUser().getAvatarUrl())
+                
+                // IMPORTANT FIX
+                .classId(b.getOpenClass() != null ? b.getOpenClass().getId() : null)
+                .scheduleId(b.getSchedule() != null ? b.getSchedule().getId() : null)
+                
                 .classTitle(b.getOpenClass() != null ? b.getOpenClass().getTitle() : null)
                 .day(b.getSchedule() != null ? b.getSchedule().getDay() : null)
                 .startTime(b.getSchedule() != null ? b.getSchedule().getStartTime() : null)
@@ -291,18 +284,38 @@ public class BookingServiceImpl implements BookingService {
     }
 
     /* ================= COUNTS & SEARCHES ================= */
-
-    @Override public Long getMyPendingBookingsCount() { return bookingRepository.countByTutor_IdAndStatus(getTutor(getCurrentUser()).getId(), BookingStatus.PENDING); }
-    @Override public Long getUnreadMessageCount(String email) { return chatMessageRepository.countUnreadByRecipient(getCurrentUser().getId()); }
+    @Override public Long getMyPendingBookingsCount() { 
+        return bookingRepository.countByTutor_IdAndStatus(getTutor(getCurrentUser()).getId(), BookingStatus.PENDING); 
+    }
+    
+    @Override public Long getUnreadMessageCount(String email) { 
+        return chatMessageRepository.countUnreadByRecipient(getCurrentUser().getId()); 
+    }
+    
     @Override public List<Long> getChatUserList(String email) { 
         User me = getCurrentUser();
         return chatMessageRepository.findAllUserMessages(me.getId()).stream()
                 .map(m -> m.getSender().getId().equals(me.getId()) ? m.getRecipient().getId() : m.getSender().getId())
                 .distinct().toList();
     }
-    @Override public List<BookingResponse> getBookingsByUserId(Long userId) { return bookingRepository.findAllByUserWithDetails(userId).stream().map(this::mapToResponse).toList(); }
-    @Override public List<BookingResponse> getBookingsByClassId(Long classId) { return bookingRepository.findByOpenClass_Id(classId).stream().map(this::mapToResponse).toList(); }
-    @Override public List<BookingResponse> getBookingsByTutorId(Long tutorId) { return bookingRepository.findAllByTutorWithDetails(tutorId).stream().map(this::mapToResponse).toList(); }
-    @Override public List<BookingResponse> getMyBookings() { return bookingRepository.findAllByUserWithDetails(getCurrentUser().getId()).stream().map(this::mapToResponse).toList(); }
-    @Override public List<BookingResponse> getMyTutorBookings() { return bookingRepository.findAllByTutorWithDetails(getTutor(getCurrentUser()).getId()).stream().map(this::mapToResponse).toList(); }
+    
+    @Override public List<BookingResponse> getBookingsByUserId(Long userId) { 
+        return bookingRepository.findAllByUserWithDetails(userId).stream().map(this::mapToResponse).toList(); 
+    }
+    
+    @Override public List<BookingResponse> getBookingsByClassId(Long classId) { 
+        return bookingRepository.findByOpenClass_Id(classId).stream().map(this::mapToResponse).toList(); 
+    }
+    
+    @Override public List<BookingResponse> getBookingsByTutorId(Long tutorId) { 
+        return bookingRepository.findAllByTutorWithDetails(tutorId).stream().map(this::mapToResponse).toList(); 
+    }
+    
+    @Override public List<BookingResponse> getMyBookings() { 
+        return bookingRepository.findAllByUserWithDetails(getCurrentUser().getId()).stream().map(this::mapToResponse).toList(); 
+    }
+    
+    @Override public List<BookingResponse> getMyTutorBookings() { 
+        return bookingRepository.findAllByTutorWithDetails(getTutor(getCurrentUser()).getId()).stream().map(this::mapToResponse).toList(); 
+    }
 }
