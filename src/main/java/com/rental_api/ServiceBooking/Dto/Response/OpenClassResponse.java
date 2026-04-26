@@ -26,7 +26,7 @@ public class OpenClassResponse {
     private String status;
     private String visibilityStatus;
 
-    // ================= DURATION (🔥 FIXED MISSING PART) =================
+    // ================= DURATION =================
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private DurationType durationType;
@@ -63,10 +63,9 @@ public class OpenClassResponse {
     // ================= TIMESTAMPS =================
     private LocalDateTime createdAt;
     private LocalDateTime newUntil;
-
     private boolean isNew;
 
-    // ================= STUDENTS =================
+    // ================= STUDENTS (UPDATED) =================
     private List<StudentPublicResponse> confirmedStudents;
 
     @Data
@@ -78,9 +77,22 @@ public class OpenClassResponse {
         private String studentName;
         private String avatar;
         private String email;
+        
+        // 🔥 Added this to show which specific time this student booked
+        private BookedScheduleInfo bookedSchedule; 
     }
 
-    // ================= SCHEDULE =================
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BookedScheduleInfo {
+        private DayOfWeek day;
+        private LocalTime startTime;
+        private LocalTime endTime;
+    }
+
+    // ================= GLOBAL SCHEDULE SLOTS =================
     private List<DayTimeSlotResponse> schedules;
 
     @Data

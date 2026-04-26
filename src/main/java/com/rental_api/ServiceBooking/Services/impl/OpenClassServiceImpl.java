@@ -29,30 +29,83 @@ public class OpenClassServiceImpl implements OpenClassService {
     private final BookingRepository bookingRepository; 
 
     // =========================================================
-    // 🔍 NEW: GET STUDENTS BY CLASS ID
+    // 🔍 GET STUDENTS BY CLASS ID
     // =========================================================
     @Override
     @Transactional(readOnly = true)
     public List<OpenClassResponse.StudentPublicResponse> getStudentsByClass(Long classId) {
-        // Ensure class exists first
         if (!openClassRepository.existsById(classId)) {
             throw new RuntimeException("Class not found");
         }
 
-        // Fetch bookings and map directly to the student DTO
+        // Uses BookingClass to match your Repository
         return bookingRepository.findConfirmedStudentsByClassId(classId)
                 .stream()
-                .map(b -> OpenClassResponse.StudentPublicResponse.builder()
-                        .studentId(b.getUser().getId())
-                        .studentName(b.getUser().getFullname())
-                        .avatar(b.getUser().getAvatarUrl())
-                        .email(b.getUser().getEmail())
-                        .build())
+                .map(this::mapToStudentResponse)
                 .toList();
     }
 
     // =========================================================
-    // 🟢 CREATE / SAVE LOGIC
+    // 🔄 FIXED: STUDENT MAPPER (Uses BookingClass)
+    // =========================================================
+    private OpenClassResponse.StudentPublicResponse mapToStudentResponse(BookingClass b) {
+        return OpenClassResponse.StudentPublicResponse.builder()
+                .studentId(b.getUser().getId())
+                .studentName(b.getUser().getFullname())
+                .avatar(b.getUser().getAvatarUrl())
+                .email(b.getUser().getEmail())
+                // Maps the specific schedule the student booked
+                .bookedSchedule(OpenClassResponse.BookedScheduleInfo.builder()
+                        .day(b.getSchedule().getDay()) // Using .getSchedule() per your repo FETCH
+                        .startTime(b.getSchedule().getStartTime())
+                        .endTime(b.getSchedule().getEndTime())
+                        .build())
+                .build();
+    }
+
+    // =========================================================
+    // 🔄 MAPPER (POPULATES STUDENT DATA)
+    // =========================================================
+    private OpenClassResponse mapToResponse(OpenClass e) {
+        List<OpenClassResponse.StudentPublicResponse> studentInfo = bookingRepository
+                .findConfirmedStudentsByClassId(e.getId())
+                .stream()
+                .map(this::mapToStudentResponse)
+                .toList();
+
+        return OpenClassResponse.builder()
+                .classId(e.getId())
+                .title(e.getTitle())
+                .description(e.getDescription())
+                .classImage(e.getClassImage())
+                .status(e.getStatus() != null ? e.getStatus().name() : null)
+                .visibilityStatus(e.getVisibilityStatus() != null ? e.getVisibilityStatus().name() : null)
+                .startDate(e.getStartDate())
+                .endDate(e.getEndDate())
+                .durationType(e.getDurationType())
+                .durationValue(e.getDurationValue())
+                .tutor(OpenClassResponse.TutorPublicResponse.builder()
+                        .tutorId(e.getTutor().getId())
+                        .name(e.getTutor().getUser().getFullname())
+                        .avatar(e.getTutor().getUser().getAvatarUrl())
+                        .rating(e.getTutor().getAverageRating())
+                        .email(e.getTutor().getUser().getEmail())
+                        .phone(e.getTutor().getUser().getPhone()).build())
+                .location(e.getLocation().getDistrict() + ", " + e.getLocation().getCity())
+                .specificAddress(e.getSpecificAddress())
+                .subjects(e.getSubjects() != null ? e.getSubjects().stream().map(Subject::getName).toList() : List.of())
+                .learningModes(e.getLearningModes() != null ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()) : Set.of())
+                .basePrice(e.getBasePrice())
+                .maxStudents(e.getMaxStudents())
+                .currentStudents(studentInfo.size())
+                .confirmedStudents(studentInfo) 
+                .schedules(e.getDayTimeSlots() != null ? e.getDayTimeSlots().stream().map(this::mapSlot).toList() : List.of())
+                .isNew(e.isNew())
+                .build();
+    }
+
+    // =========================================================
+    // 🟢 CREATE / SAVE / UPDATE / DELETE / COPY
     // =========================================================
 
     @Override
@@ -66,11 +119,9 @@ public class OpenClassServiceImpl implements OpenClassService {
     public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
         Tutor tutor = getCurrentTutor();
         OpenClass entity = new OpenClass();
-
         if (imageFile != null && !imageFile.isEmpty()) {
             entity.setClassImage(cloudinaryService.uploadFile(imageFile));
         }
-
         OpenClass saved = save(entity, request, tutor);
         return mapToResponse(saved);
     }
@@ -116,16 +167,11 @@ public class OpenClassServiceImpl implements OpenClassService {
         return saved;
     }
 
-    // =========================================================
-    // 🗑️ DELETE (WITH SAFETY CHECK)
-    // =========================================================
-
     @Override
     @Transactional
     public void deleteClass(Long id) {
         OpenClass entity = openClassRepository.findById(id).orElseThrow(() -> new RuntimeException("Class not found"));
         checkOwner(entity);
-
         long confirmedCount = bookingRepository.countConfirmedByClassId(id);
         if (confirmedCount > 0) {
             throw new RuntimeException("Action Denied: This class has " + confirmedCount + " confirmed student bookings.");
@@ -133,66 +179,11 @@ public class OpenClassServiceImpl implements OpenClassService {
         openClassRepository.delete(entity);
     }
 
-    // =========================================================
-    // 🔄 MAPPER (POPULATES STUDENT DATA)
-    // =========================================================
-
-    private OpenClassResponse mapToResponse(OpenClass e) {
-        // Fetch confirmed student list for this class
-        List<OpenClassResponse.StudentPublicResponse> studentInfo = bookingRepository
-                .findConfirmedStudentsByClassId(e.getId())
-                .stream()
-                .map(b -> OpenClassResponse.StudentPublicResponse.builder()
-                        .studentId(b.getUser().getId())
-                        .studentName(b.getUser().getFullname())
-                        .avatar(b.getUser().getAvatarUrl())
-                        .email(b.getUser().getEmail())
-                        .build())
-                .toList();
-
-        return OpenClassResponse.builder()
-                .classId(e.getId())
-                .title(e.getTitle())
-                .description(e.getDescription())
-                .classImage(e.getClassImage())
-                .status(e.getStatus() != null ? e.getStatus().name() : null)
-                .visibilityStatus(e.getVisibilityStatus() != null ? e.getVisibilityStatus().name() : null)
-                .startDate(e.getStartDate())
-                .endDate(e.getEndDate())
-                .durationType(e.getDurationType())
-                .durationValue(e.getDurationValue())
-                .tutor(OpenClassResponse.TutorPublicResponse.builder()
-                        .tutorId(e.getTutor().getId())
-                        .name(e.getTutor().getUser().getFullname())
-                        .avatar(e.getTutor().getUser().getAvatarUrl())
-                        .rating(e.getTutor().getAverageRating())
-                        .email(e.getTutor().getUser().getEmail())
-                        .phone(e.getTutor().getUser().getPhone()).build())
-                .location(e.getLocation().getDistrict() + ", " + e.getLocation().getCity())
-                .specificAddress(e.getSpecificAddress())
-                .subjects(e.getSubjects() != null ? e.getSubjects().stream().map(Subject::getName).toList() : List.of())
-                .learningModes(e.getLearningModes() != null ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()) : Set.of())
-                .basePrice(e.getBasePrice())
-                .maxStudents(e.getMaxStudents())
-                
-                // Set student data
-                .currentStudents(studentInfo.size())
-                .confirmedStudents(studentInfo) 
-
-                .schedules(e.getDayTimeSlots() != null ? e.getDayTimeSlots().stream().map(this::mapSlot).toList() : List.of())
-                .isNew(e.isNew())
-                .build();
-    }
-
     private OpenClassResponse.DayTimeSlotResponse mapSlot(DayTimeSlot s) {
         return OpenClassResponse.DayTimeSlotResponse.builder()
                 .id(s.getId()).day(s.getDay()).startTime(s.getStartTime())
                 .endTime(s.getEndTime()).maxStudents(s.getMaxStudents()).bookedCount(s.getBookedCount()).build();
     }
-
-    // =========================================================
-    // ✏️ UPDATE / DETAILS / FEED
-    // =========================================================
 
     @Override 
     @Transactional 
@@ -239,10 +230,6 @@ public class OpenClassServiceImpl implements OpenClassService {
         }
         return mapToResponse(saved);
     }
-
-    // =========================================================
-    // 🔐 INTERNAL UTILS
-    // =========================================================
 
     private void checkOwner(OpenClass entity) {
         Tutor tutor = getCurrentTutor();
