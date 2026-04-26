@@ -5,6 +5,7 @@ import com.rental_api.ServiceBooking.Dto.ChatRequest;
 import com.rental_api.ServiceBooking.Dto.ChatResponse;
 import com.rental_api.ServiceBooking.Services.BookingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +15,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+/**
+ * Controller for handling all Chat-related operations.
+ * Integrated with WebSocket logic via BookingService.
+ */
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
@@ -21,18 +26,22 @@ public class ChatController {
 
     private final BookingService bookingService;
 
-    // =====================================================
-    // UTIL: GET CURRENT AUTHENTICATED EMAIL
-    // =====================================================
+    /**
+     * Helper to get the email of the currently logged-in user from Security Context.
+     */
     private String getCurrentEmail() {
         return SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getName();
     }
 
+    // =====================================================
+    // SEND MESSAGE (TEXT + FILE)
+    // =====================================================
+    
     /**
-     * SEND MESSAGE (TEXT + FILE + CLOUDINARY)
-     * Consumes multipart/form-data to allow file uploads.
+     * Send a message to another user. 
+     * If a file is provided, it is uploaded to Cloudinary automatically.
      */
     @PostMapping(
             value = "/send",
@@ -45,22 +54,25 @@ public class ChatController {
             @RequestParam(value = "bookingId", required = false) Long bookingId,
             @RequestParam(value = "file", required = false) MultipartFile file
     ) {
-
-        // Wrap parameters into a Request DTO for the service layer
+        // Prepare DTO for service layer
         ChatRequest request = new ChatRequest();
         request.setRecipientId(recipientId);
         request.setContent(content);
         request.setBookingId(bookingId);
         request.setFile(file);
 
-        return ResponseEntity.ok(
-                bookingService.sendMessage(getCurrentEmail(), request)
-        );
+        // Service layer handles DB saving and WebSocket push
+        ChatResponse response = bookingService.sendMessage(getCurrentEmail(), request);
+        
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    // =====================================================
+    // RETRIEVAL LOGIC
+    // =====================================================
+
     /**
-     * CHAT HISTORY
-     * Retrieves all messages exchanged between the current user and another user.
+     * Gets all chat messages between the current user and another user.
      */
     @GetMapping("/history/{otherUserId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
@@ -73,8 +85,23 @@ public class ChatController {
     }
 
     /**
-     * MARK AS READ
-     * Updates the 'read' status of all unread messages from a specific sender.
+     * Returns a summarized list of all people the user has chatted with.
+     * Includes: last message, unread count, and last timestamp.
+     */
+    @GetMapping("/contacts")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    public ResponseEntity<List<ChatContactResponse>> getChatContacts() {
+        return ResponseEntity.ok(
+                bookingService.getChatContacts(getCurrentEmail())
+        );
+    }
+
+    // =====================================================
+    // STATUS & NOTIFICATION LOGIC
+    // =====================================================
+
+    /**
+     * Mark all unread messages from a specific sender as 'read'.
      */
     @PutMapping("/read/{senderId}")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
@@ -86,8 +113,7 @@ public class ChatController {
     }
 
     /**
-     * UNREAD COUNT
-     * Gets total count of unread messages for the current user across all conversations.
+     * Quick check for total unread messages for the logged-in user.
      */
     @GetMapping("/unread-count")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
@@ -98,20 +124,7 @@ public class ChatController {
     }
 
     /**
-     * CHAT CONTACTS
-     * Returns a list of users the current user has chatted with, including last message and unread count.
-     */
-    @GetMapping("/contacts")
-    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
-    public ResponseEntity<List<ChatContactResponse>> getChatContacts() {
-        return ResponseEntity.ok(
-                bookingService.getChatContacts(getCurrentEmail())
-        );
-    }
-
-    /**
-     * CHAT USERS (DEBUG/LIST)
-     * Simple list of User IDs involved in conversations with the current user.
+     * Utility to get a simple list of User IDs the current user is interacting with.
      */
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")

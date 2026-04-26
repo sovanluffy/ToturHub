@@ -34,9 +34,7 @@ public class BookingServiceImpl implements BookingService {
     private final SimpMessagingTemplate messagingTemplate;
     private final Cloudinary cloudinary;
 
-    // =====================================================
-    // ================= UTIL ==============================
-    // =====================================================
+    /* ================= UTIL HELPERS ================= */
 
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -51,9 +49,7 @@ public class BookingServiceImpl implements BookingService {
         return user.getTutor();
     }
 
-    // =====================================================
-    // ================= BOOKING LOGIC =====================
-    // =====================================================
+    /* ================= BOOKING CORE LOGIC ================= */
 
     @Override
     @Transactional
@@ -88,7 +84,7 @@ public class BookingServiceImpl implements BookingService {
 
         BookingClass saved = bookingRepository.save(booking);
 
-        // Notify Tutor via Chat about new booking
+        // Notify Tutor immediately via System Chat
         sendAutoSystemChat(student, openClass.getTutor().getUser(),
                 "📌 New booking request from " + student.getFullname() + " for " + openClass.getTitle());
 
@@ -104,7 +100,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         BookingClass saved = bookingRepository.save(booking);
 
-        // ✅ AUTO MESSAGE: Push real-time confirmation to student
+        // ✅ AUTO CHAT: Push real-time confirmation to student's chat window
         sendAutoSystemChat(
             saved.getTutor().getUser(), 
             saved.getUser(), 
@@ -123,7 +119,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus(BookingStatus.REJECTED);
         BookingClass saved = bookingRepository.save(booking);
 
-        // ✅ AUTO MESSAGE: Push real-time rejection to student
+        // ✅ AUTO CHAT: Push real-time rejection to student's chat window
         sendAutoSystemChat(
             saved.getTutor().getUser(), 
             saved.getUser(), 
@@ -133,12 +129,10 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(saved);
     }
 
-    // =====================================================
-    // ================= CHAT SERVICE ======================
-    // =====================================================
+    /* ================= REAL-TIME CHAT SERVICE ================= */
 
     /**
-     * ✅ SYSTEM HELPER: Saves message and triggers WebSocket
+     * Sends a system-generated message and pushes it via WebSocket instantly.
      */
     private void sendAutoSystemChat(User sender, User recipient, String content) {
         ChatMessage msg = ChatMessage.builder()
@@ -151,9 +145,9 @@ public class BookingServiceImpl implements BookingService {
                 .build();
 
         ChatMessage saved = chatMessageRepository.save(msg);
-        
-        // Push to WebSocket immediately
         ChatResponse response = mapToChatResponse(saved);
+        
+        // Pushing to /user/{email}/queue/messages
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
@@ -203,6 +197,7 @@ public class BookingServiceImpl implements BookingService {
         ChatMessage saved = chatMessageRepository.save(message);
         ChatResponse response = mapToChatResponse(saved);
 
+        // Real-time Push to Recipient
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
                 "/queue/messages",
@@ -212,9 +207,7 @@ public class BookingServiceImpl implements BookingService {
         return response;
     }
 
-    // =====================================================
-    // ================= OTHER LOGIC =======================
-    // =====================================================
+    /* ================= QUERIES & DATA RETRIEVAL ================= */
 
     @Override
     public List<ChatResponse> getChatHistory(String myEmail, Long otherUserId) {
@@ -261,9 +254,7 @@ public class BookingServiceImpl implements BookingService {
         }).toList();
     }
 
-    // =====================================================
-    // ================= MAPPERS ===========================
-    // =====================================================
+    /* ================= MAPPERS ================= */
 
     private ChatResponse mapToChatResponse(ChatMessage m) {
         return ChatResponse.builder()
@@ -298,6 +289,8 @@ public class BookingServiceImpl implements BookingService {
                 .createdAt(b.getCreatedAt())
                 .build();
     }
+
+    /* ================= COUNTS & SEARCHES ================= */
 
     @Override public Long getMyPendingBookingsCount() { return bookingRepository.countByTutor_IdAndStatus(getTutor(getCurrentUser()).getId(), BookingStatus.PENDING); }
     @Override public Long getUnreadMessageCount(String email) { return chatMessageRepository.countUnreadByRecipient(getCurrentUser().getId()); }
