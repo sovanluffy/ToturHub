@@ -133,7 +133,6 @@ public class BookingServiceImpl implements BookingService {
         String mediaUrl = null;
         String messageTypeStr = "USER";
 
-        // 1. CLOUDINARY UPLOAD
         if (request.getFile() != null && !request.getFile().isEmpty()) {
             try {
                 String contentType = request.getFile().getContentType();
@@ -156,15 +155,13 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // 2. PREVENT NULL CONTENT ERROR (Fixes 400 Bad Request)
         String content = request.getContent();
         if (content == null || content.trim().isEmpty()) {
             if ("IMAGE".equals(messageTypeStr)) content = "Sent an image";
             else if ("AUDIO".equals(messageTypeStr)) content = "Sent an audio message";
-            else content = ""; // Ensuring column constraint is met
+            else content = ""; 
         }
 
-        // 3. PERSIST MESSAGE
         ChatMessage message = ChatMessage.builder()
                 .sender(sender)
                 .recipient(recipient)
@@ -177,7 +174,6 @@ public class BookingServiceImpl implements BookingService {
 
         ChatMessage saved = chatMessageRepository.save(message);
 
-        // 4. NOTIFY VIA WEBSOCKET
         ChatResponse response = mapToChatResponse(saved);
         messagingTemplate.convertAndSendToUser(
                 recipient.getEmail(),
@@ -274,13 +270,32 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
+    /**
+     * ✅ UPDATED MAPPER: Maps all related entities to the DTO
+     * This prevents null fields in your JSON.
+     */
     private BookingResponse mapToResponse(BookingClass b) {
         return BookingResponse.builder()
                 .bookingId(b.getId())
                 .userId(b.getUser().getId())
                 .studentName(b.getUser().getFullname())
                 .studentEmail(b.getUser().getEmail())
+                .studentPhone(b.getUser().getPhone())
+                .studentAvatar(b.getUser().getAvatarUrl())
+                
+                // Open Class Details
+                .classId(b.getOpenClass() != null ? b.getOpenClass().getId() : null)
+                .classTitle(b.getOpenClass() != null ? b.getOpenClass().getTitle() : null)
+                
+                // Schedule Details
+                .scheduleId(b.getSchedule() != null ? b.getSchedule().getId() : null)
+                .day(b.getSchedule() != null ? b.getSchedule().getDay() : null)
+                .startTime(b.getSchedule() != null ? b.getSchedule().getStartTime() : null)
+                .endTime(b.getSchedule() != null ? b.getSchedule().getEndTime() : null)
+                
                 .status(b.getStatus())
+                .note(b.getNote())
+                .telegram(b.getTelegram())
                 .createdAt(b.getCreatedAt())
                 .build();
     }

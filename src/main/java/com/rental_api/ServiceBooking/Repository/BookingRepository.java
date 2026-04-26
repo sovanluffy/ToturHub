@@ -6,10 +6,12 @@ import com.rental_api.ServiceBooking.Entity.User;
 import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface BookingRepository extends JpaRepository<BookingClass, Long> {
 
     // =====================================================
@@ -58,7 +60,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
             List<BookingStatus> statuses
     );
 
-    // ✅ FIXED CLEAN DUPLICATE CHECK (USE THIS IN SERVICE)
+    // CLEAN DUPLICATE CHECK
     @Query("""
         SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
         FROM BookingClass b
@@ -70,6 +72,12 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
             @Param("user") User user,
             @Param("tutor") Tutor tutor,
             @Param("status") BookingStatus status
+    );
+
+    boolean existsByUser_IdAndTutor_IdAndStatus(
+            Long userId,
+            Long tutorId,
+            BookingStatus status
     );
 
     // =====================================================
@@ -91,6 +99,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
     // =====================================================
     // ================= FETCH DETAILS ======================
     // =====================================================
+    // CRITICAL: These ensure startTime, endTime, and classTitle are NOT null
 
     @Query("""
         SELECT b FROM BookingClass b
@@ -107,6 +116,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         JOIN FETCH b.openClass
         JOIN FETCH b.schedule
         WHERE b.user.id = :userId
+        ORDER BY b.createdAt DESC
     """)
     List<BookingClass> findAllByUserWithDetails(@Param("userId") Long userId);
 
@@ -116,6 +126,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         JOIN FETCH b.openClass
         JOIN FETCH b.schedule
         WHERE b.tutor.id = :tutorId
+        ORDER BY b.createdAt DESC
     """)
     List<BookingClass> findAllByTutorWithDetails(@Param("tutorId") Long tutorId);
 
@@ -124,6 +135,7 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         JOIN FETCH b.user
         JOIN FETCH b.openClass
         JOIN FETCH b.schedule
+        ORDER BY b.createdAt DESC
     """)
     List<BookingClass> findAllWithDetails();
 
@@ -146,10 +158,4 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
     """)
     List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId);
-
-    boolean existsByUser_IdAndTutor_IdAndStatus(
-        Long userId,
-        Long tutorId,
-        BookingStatus status
-);
 }
