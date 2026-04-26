@@ -1,7 +1,7 @@
 package com.rental_api.ServiceBooking.Controller;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import com.rental_api.ServiceBooking.Dto.Request.ReviewRequest;
 import com.rental_api.ServiceBooking.Dto.Response.GetReviewResponse;
@@ -10,15 +10,6 @@ import com.rental_api.ServiceBooking.Services.ReviewService;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.GetMapping;
-
-
-
-
 @RestController
 @RequestMapping("/api/v1/reviews")
 @RequiredArgsConstructor
@@ -26,19 +17,43 @@ public class ReviewController {
 
     private final ReviewService reviewService;
 
-    @PostMapping("/{tutorId}")
-    public ResponseEntity<ReviewResponse> createReview(
-            @PathVariable Long tutorId,
+    // =====================================================
+    // ================= CREATE REVIEW ======================
+    // =====================================================
+
+    /**
+     * POST /api/v1/reviews/class/{classId}
+     * Students use this to review a specific class they attended.
+     */
+    @PostMapping("/class/{classId}")
+    public ResponseEntity<ReviewResponse> createClassReview(
+            @PathVariable Long classId,
             @RequestBody ReviewRequest reviewRequest   
     ) {
         return ResponseEntity.ok(
-                reviewService.createReview(tutorId, reviewRequest)
+                reviewService.createClassReview(classId, reviewRequest)
         );
     }
 
-    @GetMapping("/{tutorId}")
+    // =====================================================
+    // ================= GET REVIEWS =======================
+    // =====================================================
+
+    /**
+     * GET /api/v1/reviews/class/{classId}
+     * Fetch the "Total People" count, Average Rating, and all comments for a specific class.
+     */
+    @GetMapping("/class/{classId}")
+    public ResponseEntity<GetReviewResponse> getReviewsByClassId(@PathVariable Long classId) {
+        return ResponseEntity.ok(reviewService.getReviewsByClassId(classId));
+    }
+
+    /**
+     * GET /api/v1/reviews/tutor/{tutorId}
+     * Fetch the overall reputation of a tutor across all their classes.
+     */
+    @GetMapping("/tutor/{tutorId}")
     public ResponseEntity<GetReviewResponse> getReviewsByTutorId(@PathVariable Long tutorId) {
         return ResponseEntity.ok(reviewService.getReviewByTutorId(tutorId));
     }
-    
 }

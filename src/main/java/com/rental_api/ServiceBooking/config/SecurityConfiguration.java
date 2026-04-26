@@ -1,6 +1,7 @@
 package com.rental_api.ServiceBooking.config;
 
 import com.rental_api.ServiceBooking.Security.JwtAuthenticationFilter;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.annotation.Bean;
@@ -77,6 +78,13 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/{id}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/tutor/**").permitAll()
 
+                        // ================= REVIEWS (NEWLY ADDED) =================
+                        // Allow anyone to see reviews
+                        .requestMatchers(HttpMethod.GET, "/api/v1/reviews/class/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/reviews/tutor/**").permitAll()
+                        // Only students can write reviews
+                        .requestMatchers(HttpMethod.POST, "/api/v1/reviews/class/**").hasRole("STUDENT")
+
                         // ================= TUTOR (WRITE ONLY) =================
                         .requestMatchers(HttpMethod.POST, "/api/v1/open-classes/**").hasRole("TUTOR")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/open-classes/**").hasRole("TUTOR")
@@ -95,6 +103,7 @@ public class SecurityConfiguration {
 
                         // ================= BOOKING =================
                         .requestMatchers(HttpMethod.POST, "/api/v1/bookings/book-class/**").hasRole("STUDENT")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/bookings/me").authenticated() // Added for frontend sync
                         .requestMatchers(HttpMethod.GET, "/api/v1/bookings/user/**").hasAnyRole("STUDENT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/bookings/tutor/**").hasAnyRole("TUTOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/bookings/class/**").hasAnyRole("TUTOR", "ADMIN")

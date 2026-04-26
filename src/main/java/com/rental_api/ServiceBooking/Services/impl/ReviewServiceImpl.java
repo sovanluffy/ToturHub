@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.rental_api.ServiceBooking.Dto.Request.ReviewRequest;
 import com.rental_api.ServiceBooking.Dto.Response.GetReviewResponse;
@@ -11,12 +12,14 @@ import com.rental_api.ServiceBooking.Dto.Response.ReviewResponse;
 import com.rental_api.ServiceBooking.Entity.Review;
 import com.rental_api.ServiceBooking.Entity.Tutor;
 import com.rental_api.ServiceBooking.Entity.User;
+import com.rental_api.ServiceBooking.Entity.OpenClass;
 import com.rental_api.ServiceBooking.Entity.Enum.BookingStatus;
 import com.rental_api.ServiceBooking.Exception.ResourceNotFoundException;
 import com.rental_api.ServiceBooking.Repository.BookingRepository;
-import com.rental_api.ServiceBooking.Repository.ReviewRepostory;
+import com.rental_api.ServiceBooking.Repository.ReviewRepository;
 import com.rental_api.ServiceBooking.Repository.TutorRepository;
 import com.rental_api.ServiceBooking.Repository.UserRepository;
+import com.rental_api.ServiceBooking.Repository.OpenClassRepository;
 import com.rental_api.ServiceBooking.Services.ReviewService;
 
 import lombok.RequiredArgsConstructor;
@@ -25,10 +28,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ReviewServiceImpl implements ReviewService {
 
-    private final ReviewRepostory reviewRepostory;
+    private final ReviewRepository reviewRepository;
     private final TutorRepository tutorRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+    private final OpenClassRepository openClassRepository;
 
     // =====================================================
     // ================= CURRENT USER ======================
@@ -41,100 +45,133 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     // =====================================================
-    // ================= CREATE REVIEW ======================
+    // ================= CREATE CLASS REVIEW ================
     // =====================================================
 
     @Override
-    public ReviewResponse createReview(Long tutorId, ReviewRequest reviewRequest) {
+    @Transactional
+    public ReviewResponse createClassReview(Long classId, ReviewRequest reviewRequest) {
 
         User currentUser = getCurrentUser();
 
-        Tutor tutor = tutorRepository.findById(tutorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
+        // 1. Load the specific class to review
+        OpenClass openClass = openClassRepository.findById(classId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + classId));
 
-        // =====================================================
-        // FIX 1: Check confirmed booking (CORRECT METHOD)
-        // =====================================================
+        Tutor tutor = openClass.getTutor();
+
+        // 2. VALIDATION: Check if student has a CONFIRMED booking for THIS SPECIFIC CLASS
         boolean hasConfirmedBooking =
-                bookingRepository.existsByUser_IdAndTutor_IdAndStatus(
+                bookingRepository.existsByUser_IdAndOpenClass_IdAndStatus(
                         currentUser.getId(),
-                        tutor.getId(),
+                        classId,
                         BookingStatus.CONFIRMED
                 );
 
         if (!hasConfirmedBooking) {
             throw new IllegalStateException(
-                    "You can only review tutors you have a confirmed booking with"
+                    "Action Denied: You can only review classes you have a confirmed booking for."
             );
         }
 
-        // =====================================================
-        // FIX 2: Prevent duplicate review
-        // =====================================================
+        // 3. DUPLICATE CHECK: Prevent multiple reviews for the same class by the same student
         boolean alreadyReviewed =
-                reviewRepostory.existsByStudentAndTutor(currentUser, tutor);
+                reviewRepository.existsByStudent_IdAndOpenClass_Id(currentUser.getId(), classId);
 
         if (alreadyReviewed) {
-            throw new IllegalStateException("You already reviewed this tutor");
+            throw new IllegalStateException("Duplicate Action: You have already reviewed this class.");
         }
 
-        // =====================================================
-        // FIX 3: Validate rating
-        // =====================================================
-        if (reviewRequest.getRating() < 1 || reviewRequest.getRating() > 5) {
-            throw new IllegalArgumentException("Rating must be between 1 and 5");
-        }
-
-        // =====================================================
-        // SAVE REVIEW
-        // =====================================================
+        // 4. SAVE REVIEW
         Review review = Review.builder()
                 .comment(reviewRequest.getComment())
                 .rating(reviewRequest.getRating())
                 .tutor(tutor)
                 .student(currentUser)
+                .openClass(openClass) 
                 .build();
 
-        Review saved = reviewRepostory.save(review);
+        Review saved = reviewRepository.save(review);
+        
+        // Update tutor's global average rating (Recalculates based on all reviews)
+        updateTutorGlobalRating(tutor.getId());
 
         return mapToResponse(saved);
     }
 
     // =====================================================
-    // ================= GET REVIEWS =======================
+    // ================= GET REVIEWS BY CLASS ===============
     // =====================================================
 
     @Override
-    public GetReviewResponse getReviewByTutorId(Long tutorId) {
+    @Transactional(readOnly = true)
+    public GetReviewResponse getReviewsByClassId(Long classId) {
 
-        Tutor tutor = tutorRepository.findById(tutorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Tutor not found"));
+        OpenClass openClass = openClassRepository.findById(classId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
 
-        List<Review> reviews = reviewRepostory.findAll()
-                .stream()
-                .filter(r -> r.getTutor().getId().equals(tutorId))
-                .toList();
+        // Get reviews specifically for this class
+        List<Review> reviews = reviewRepository.findByOpenClass_Id(classId);
 
         double averageRating = reviews.stream()
                 .mapToInt(Review::getRating)
                 .average()
                 .orElse(0.0);
 
+        // Format to 1 decimal place (e.g., 4.5)
         double roundedRating = Math.round(averageRating * 10.0) / 10.0;
 
-        int totalReviewer = reviews.size();
-
         return GetReviewResponse.builder()
-                .tutorId(tutor.getId())
+                .tutorId(openClass.getTutor().getId())
+                .classId(classId)
+                .classTitle(openClass.getTitle())
                 .averageRating(roundedRating)
-                .totalReviewer(totalReviewer)
+                .totalReviewer(reviews.size()) // "Total People" count for this class
                 .reviews(reviews.stream().map(this::mapToResponse).toList())
                 .build();
     }
 
     // =====================================================
-    // ================= MAPPER ============================
+    // ================= GET REVIEWS BY TUTOR ===============
     // =====================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public GetReviewResponse getReviewByTutorId(Long tutorId) {
+        
+        if (!tutorRepository.existsById(tutorId)) {
+            throw new ResourceNotFoundException("Tutor not found");
+        }
+
+        // Get all reviews for this tutor across all their classes
+        List<Review> reviews = reviewRepository.findByTutorId(tutorId);
+        
+        double averageRating = reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0.0);
+        
+        return GetReviewResponse.builder()
+                .tutorId(tutorId)
+                .averageRating(Math.round(averageRating * 10.0) / 10.0)
+                .totalReviewer(reviews.size()) // "Total People" count for this tutor
+                .reviews(reviews.stream().map(this::mapToResponse).toList())
+                .build();
+    }
+
+    // =====================================================
+    // ================= HELPERS & MAPPING =================
+    // =====================================================
+
+    /**
+     * Recalculates the tutor's average rating from all reviews and saves it.
+     */
+    private void updateTutorGlobalRating(Long tutorId) {
+        Tutor tutor = tutorRepository.findById(tutorId).orElseThrow();
+        Double avg = reviewRepository.getAverageRatingByTutorId(tutorId);
+        tutor.setAverageRating(avg != null ? avg : 0.0);
+        tutorRepository.save(tutor);
+    }
 
     private ReviewResponse mapToResponse(Review review) {
         return ReviewResponse.builder()
@@ -143,7 +180,18 @@ public class ReviewServiceImpl implements ReviewService {
                 .rating(review.getRating())
                 .tutorId(review.getTutor().getId())
                 .studentId(review.getStudent().getId())
+                .studentName(review.getStudent().getFullname())
+                .studentAvatar(review.getStudent().getAvatarUrl())
+                .classId(review.getOpenClass() != null ? review.getOpenClass().getId() : null)
                 .createdAt(review.getCreateAt())
                 .build();
+    }
+
+    /**
+     * Legacy support: Redirects or throws error if the old generic method is called.
+     */
+    @Override
+    public ReviewResponse createReview(Long tutorId, ReviewRequest reviewRequest) {
+        throw new UnsupportedOperationException("Error: Use createClassReview(Long classId, ...) to submit feedback.");
     }
 }

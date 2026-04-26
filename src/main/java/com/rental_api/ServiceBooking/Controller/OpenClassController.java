@@ -59,6 +59,15 @@ public class OpenClassController {
         );
     }
 
+    // ================= GET STUDENTS BY CLASS (🔥 NEW) =================
+    @Operation(summary = "Get list of confirmed students in a class")
+    @GetMapping("/{id}/students")
+    public ResponseEntity<List<OpenClassResponse.StudentPublicResponse>> getStudentsByClass(@PathVariable Long id) {
+        return ResponseEntity.ok(
+                openClassService.getStudentsByClass(id)
+        );
+    }
+
     // ================= PUBLIC CLASSES =================
     @Operation(summary = "Get all public open classes")
     @GetMapping("/public")
@@ -129,12 +138,15 @@ public class OpenClassController {
         return ResponseEntity.noContent().build();
     }
 
+    // ================= FILTER =================
+    @Operation(summary = "Filter classes by location and subject")
     @GetMapping("/filter")
-    public List<OpenClassResponse> filter(
+    public ResponseEntity<List<OpenClassResponse>> filter(
             @RequestParam(required = false) String location,
             @RequestParam(required = false) String subject
     ) {
-        return openClassService.filterOpenClasses(location, subject);
+        return ResponseEntity.ok(
+                openClassService.filterOpenClasses(location, subject)
+        );
     }
-
 }

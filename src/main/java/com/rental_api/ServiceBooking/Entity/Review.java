@@ -1,7 +1,6 @@
 package com.rental_api.ServiceBooking.Entity;
 
 import java.time.LocalDateTime;
-
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,6 +31,11 @@ public class Review {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id")
     private User student;
+
+    // 🔥 Link to the specific Class
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_id")
+    private OpenClass openClass;
 
     private LocalDateTime createAt;
 

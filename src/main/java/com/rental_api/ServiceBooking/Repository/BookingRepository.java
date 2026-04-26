@@ -158,4 +158,5 @@ public interface BookingRepository extends JpaRepository<BookingClass, Long> {
         AND b.status = com.rental_api.ServiceBooking.Entity.Enum.BookingStatus.CONFIRMED
     """)
     List<BookingClass> findConfirmedStudentsByClassId(@Param("classId") Long classId);
+    boolean existsByUser_IdAndOpenClass_IdAndStatus(Long userId, Long openClassId, BookingStatus status);
 }

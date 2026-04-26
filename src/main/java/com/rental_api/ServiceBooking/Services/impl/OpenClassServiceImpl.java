@@ -6,12 +6,12 @@ import com.rental_api.ServiceBooking.Entity.*;
 import com.rental_api.ServiceBooking.Repository.*;
 import com.rental_api.ServiceBooking.Services.CloudinaryService;
 import com.rental_api.ServiceBooking.Services.OpenClassService;
+import com.rental_api.ServiceBooking.Specification.OpenClassSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import com.rental_api.ServiceBooking.Specification.OpenClassSpecification;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,9 +26,33 @@ public class OpenClassServiceImpl implements OpenClassService {
     private final LocationRepository locationRepository;
     private final CloudinaryService cloudinaryService;
     private final DayTimeSlotRepository dayTimeSlotRepository;
+    private final BookingRepository bookingRepository; 
 
     // =========================================================
-    // CREATE
+    // 🔍 NEW: GET STUDENTS BY CLASS ID
+    // =========================================================
+    @Override
+    @Transactional(readOnly = true)
+    public List<OpenClassResponse.StudentPublicResponse> getStudentsByClass(Long classId) {
+        // Ensure class exists first
+        if (!openClassRepository.existsById(classId)) {
+            throw new RuntimeException("Class not found");
+        }
+
+        // Fetch bookings and map directly to the student DTO
+        return bookingRepository.findConfirmedStudentsByClassId(classId)
+                .stream()
+                .map(b -> OpenClassResponse.StudentPublicResponse.builder()
+                        .studentId(b.getUser().getId())
+                        .studentName(b.getUser().getFullname())
+                        .avatar(b.getUser().getAvatarUrl())
+                        .email(b.getUser().getEmail())
+                        .build())
+                .toList();
+    }
+
+    // =========================================================
+    // 🟢 CREATE / SAVE LOGIC
     // =========================================================
 
     @Override
@@ -40,9 +64,7 @@ public class OpenClassServiceImpl implements OpenClassService {
     @Override
     @Transactional
     public OpenClassResponse createClassWithImage(OpenClassRequest request, MultipartFile imageFile) {
-
         Tutor tutor = getCurrentTutor();
-
         OpenClass entity = new OpenClass();
 
         if (imageFile != null && !imageFile.isEmpty()) {
@@ -53,197 +75,147 @@ public class OpenClassServiceImpl implements OpenClassService {
         return mapToResponse(saved);
     }
 
-    // =========================================================
-    // SAVE CORE
-    // =========================================================
-
     private OpenClass save(OpenClass entity, OpenClassRequest request, Tutor tutor) {
-
         entity.setTitle(request.getTitle());
         entity.setDescription(request.getDescription());
         entity.setTutor(tutor);
-
         entity.setSubjects(subjectRepository.findAllById(request.getSubjectIds()));
-
         entity.setLocation(locationRepository.findById(request.getLocationId())
                 .orElseThrow(() -> new RuntimeException("Location not found")));
-
         entity.setSpecificAddress(request.getSpecificAddress());
         entity.setBasePrice(request.getBasePrice());
         entity.setMaxStudents(request.getMaxStudents());
-
-        // ================= DURATION (🔥 ADDED) =================
         entity.setStartDate(request.getStartDate());
         entity.setDurationType(request.getDurationType());
         entity.setDurationValue(request.getDurationValue());
 
-        // auto calculate end date
-        if (request.getStartDate() != null) {
-            entity.setEndDate(entity.calculateEndDate());
-        }
+        if (request.getStartDate() != null) entity.setEndDate(entity.calculateEndDate());
 
-        // ================= LEARNING MODES =================
         if (request.getLearningModes() != null) {
-            entity.setLearningModes(
-                    request.getLearningModes()
-                            .stream()
-                            .map(m -> OpenClass.LearningMode.valueOf(m.toUpperCase()))
-                            .collect(Collectors.toSet())
-            );
+            entity.setLearningModes(request.getLearningModes().stream()
+                    .map(m -> OpenClass.LearningMode.valueOf(m.toUpperCase()))
+                    .collect(Collectors.toSet()));
         }
 
-        entity.setStatus(
-                request.getStatus() != null
-                        ? OpenClass.ClassStatus.valueOf(request.getStatus().toUpperCase())
-                        : OpenClass.ClassStatus.OPEN
-        );
-
+        entity.setStatus(request.getStatus() != null ? 
+                OpenClass.ClassStatus.valueOf(request.getStatus().toUpperCase()) : OpenClass.ClassStatus.OPEN);
         entity.setVisibilityStatus(OpenClass.VisibilityStatus.PUBLIC);
 
         OpenClass saved = openClassRepository.save(entity);
 
-        // ================= SCHEDULES =================
         if (request.getDayTimeSlots() != null && !request.getDayTimeSlots().isEmpty()) {
-
             List<DayTimeSlot> slots = request.getDayTimeSlots().stream()
                     .map(s -> DayTimeSlot.builder()
-                            .day(s.getDay())
-                            .startTime(s.getStartTime())
-                            .endTime(s.getEndTime())
+                            .day(s.getDay()).startTime(s.getStartTime()).endTime(s.getEndTime())
                             .maxStudents(s.getMaxStudents() != null ? s.getMaxStudents() : 10)
-                            .bookedCount(0)
-                            .openClass(saved)
-                            .build())
+                            .bookedCount(0).openClass(saved).build())
                     .toList();
-
             dayTimeSlotRepository.saveAll(slots);
             saved.setDayTimeSlots(slots);
         }
-
         return saved;
     }
 
     // =========================================================
-    // UPDATE
+    // 🗑️ DELETE (WITH SAFETY CHECK)
     // =========================================================
 
     @Override
     @Transactional
-    public OpenClassResponse updateClass(Long id, OpenClassRequest request) {
-
-        OpenClass entity = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-
-        checkOwner(entity);
-
-        OpenClass updated = save(entity, request, entity.getTutor());
-        return mapToResponse(updated);
-    }
-
-    // =========================================================
-    // DELETE
-    // =========================================================
-
-    @Override
     public void deleteClass(Long id) {
-
-        OpenClass entity = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-
+        OpenClass entity = openClassRepository.findById(id).orElseThrow(() -> new RuntimeException("Class not found"));
         checkOwner(entity);
 
+        long confirmedCount = bookingRepository.countConfirmedByClassId(id);
+        if (confirmedCount > 0) {
+            throw new RuntimeException("Action Denied: This class has " + confirmedCount + " confirmed student bookings.");
+        }
         openClassRepository.delete(entity);
     }
 
     // =========================================================
-    // GET
+    // 🔄 MAPPER (POPULATES STUDENT DATA)
     // =========================================================
 
-    @Override
-    public OpenClassResponse getClassDetails(Long id) {
-        return openClassRepository.findById(id)
-                .map(this::mapToResponse)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-    }
-
-    @Override
-    public List<OpenClassResponse> getAllPublicCards() {
-        return openClassRepository.findAllPublicFeed(
-                        OpenClass.ClassStatus.OPEN,
-                        OpenClass.VisibilityStatus.PUBLIC
-                )
+    private OpenClassResponse mapToResponse(OpenClass e) {
+        // Fetch confirmed student list for this class
+        List<OpenClassResponse.StudentPublicResponse> studentInfo = bookingRepository
+                .findConfirmedStudentsByClassId(e.getId())
                 .stream()
-                .map(this::mapToResponse)
+                .map(b -> OpenClassResponse.StudentPublicResponse.builder()
+                        .studentId(b.getUser().getId())
+                        .studentName(b.getUser().getFullname())
+                        .avatar(b.getUser().getAvatarUrl())
+                        .email(b.getUser().getEmail())
+                        .build())
                 .toList();
+
+        return OpenClassResponse.builder()
+                .classId(e.getId())
+                .title(e.getTitle())
+                .description(e.getDescription())
+                .classImage(e.getClassImage())
+                .status(e.getStatus() != null ? e.getStatus().name() : null)
+                .visibilityStatus(e.getVisibilityStatus() != null ? e.getVisibilityStatus().name() : null)
+                .startDate(e.getStartDate())
+                .endDate(e.getEndDate())
+                .durationType(e.getDurationType())
+                .durationValue(e.getDurationValue())
+                .tutor(OpenClassResponse.TutorPublicResponse.builder()
+                        .tutorId(e.getTutor().getId())
+                        .name(e.getTutor().getUser().getFullname())
+                        .avatar(e.getTutor().getUser().getAvatarUrl())
+                        .rating(e.getTutor().getAverageRating())
+                        .email(e.getTutor().getUser().getEmail())
+                        .phone(e.getTutor().getUser().getPhone()).build())
+                .location(e.getLocation().getDistrict() + ", " + e.getLocation().getCity())
+                .specificAddress(e.getSpecificAddress())
+                .subjects(e.getSubjects() != null ? e.getSubjects().stream().map(Subject::getName).toList() : List.of())
+                .learningModes(e.getLearningModes() != null ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet()) : Set.of())
+                .basePrice(e.getBasePrice())
+                .maxStudents(e.getMaxStudents())
+                
+                // Set student data
+                .currentStudents(studentInfo.size())
+                .confirmedStudents(studentInfo) 
+
+                .schedules(e.getDayTimeSlots() != null ? e.getDayTimeSlots().stream().map(this::mapSlot).toList() : List.of())
+                .isNew(e.isNew())
+                .build();
     }
 
-    @Override
-    public List<OpenClassResponse> findByTutorId(Long tutorId) {
-        return openClassRepository.findByTutorId(tutorId)
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
-
-    @Override
-    public List<OpenClassResponse> getPublicClassesByTutor(Long tutorId) {
-        return openClassRepository.findPublicClassesByTutorId(
-                        tutorId,
-                        OpenClass.ClassStatus.OPEN,
-                        OpenClass.VisibilityStatus.PUBLIC
-                )
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
-
-    // =========================================================
-    // END / REOPEN
-    // =========================================================
-
-    @Override
-    @Transactional
-    public OpenClassResponse endClass(Long id) {
-
-        OpenClass entity = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-
-        checkOwner(entity);
-
-        entity.setStatus(OpenClass.ClassStatus.CLOSED);
-
-        return mapToResponse(openClassRepository.save(entity));
-    }
-
-    @Override
-    @Transactional
-    public OpenClassResponse reopenClass(Long id) {
-
-        OpenClass entity = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-
-        checkOwner(entity);
-
-        entity.setStatus(OpenClass.ClassStatus.OPEN);
-
-        return mapToResponse(openClassRepository.save(entity));
+    private OpenClassResponse.DayTimeSlotResponse mapSlot(DayTimeSlot s) {
+        return OpenClassResponse.DayTimeSlotResponse.builder()
+                .id(s.getId()).day(s.getDay()).startTime(s.getStartTime())
+                .endTime(s.getEndTime()).maxStudents(s.getMaxStudents()).bookedCount(s.getBookedCount()).build();
     }
 
     // =========================================================
-    // COPY
+    // ✏️ UPDATE / DETAILS / FEED
     // =========================================================
+
+    @Override 
+    @Transactional 
+    public OpenClassResponse updateClass(Long id, OpenClassRequest request) {
+        OpenClass e = openClassRepository.findById(id).orElseThrow();
+        checkOwner(e);
+        return mapToResponse(save(e, request, e.getTutor()));
+    }
+
+    @Override public OpenClassResponse getClassDetails(Long id) { return openClassRepository.findById(id).map(this::mapToResponse).orElseThrow(); }
+    @Override public List<OpenClassResponse> findByTutorId(Long tutorId) { return openClassRepository.findByTutorId(tutorId).stream().map(this::mapToResponse).toList(); }
+    @Override public List<OpenClassResponse> getAllPublicCards() { return openClassRepository.findAllPublicFeed(OpenClass.ClassStatus.OPEN, OpenClass.VisibilityStatus.PUBLIC).stream().map(this::mapToResponse).toList(); }
+    @Override public List<OpenClassResponse> getPublicClassesByTutor(Long tId) { return openClassRepository.findPublicClassesByTutorId(tId, OpenClass.ClassStatus.OPEN, OpenClass.VisibilityStatus.PUBLIC).stream().map(this::mapToResponse).toList(); }
+    @Override @Transactional public OpenClassResponse endClass(Long id) { OpenClass e = openClassRepository.findById(id).orElseThrow(); checkOwner(e); e.setStatus(OpenClass.ClassStatus.CLOSED); return mapToResponse(openClassRepository.save(e)); }
+    @Override @Transactional public OpenClassResponse reopenClass(Long id) { OpenClass e = openClassRepository.findById(id).orElseThrow(); checkOwner(e); e.setStatus(OpenClass.ClassStatus.OPEN); return mapToResponse(openClassRepository.save(e)); }
+    @Override @Transactional(readOnly = true) public List<OpenClassResponse> filterOpenClasses(String loc, String sub) { return openClassRepository.findAll(OpenClassSpecification.filter(loc, sub)).stream().map(this::mapToResponse).toList(); }
 
     @Override
     @Transactional
     public OpenClassResponse copyClass(Long id) {
-
-        OpenClass original = openClassRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-
+        OpenClass original = openClassRepository.findById(id).orElseThrow();
         checkOwner(original);
-
         OpenClass copy = new OpenClass();
-
         copy.setTitle(original.getTitle() + " (Copy)");
         copy.setDescription(original.getDescription());
         copy.setTutor(original.getTutor());
@@ -252,142 +224,33 @@ public class OpenClassServiceImpl implements OpenClassService {
         copy.setBasePrice(original.getBasePrice());
         copy.setMaxStudents(original.getMaxStudents());
         copy.setClassImage(original.getClassImage());
-
-        // no duration copy (fresh class)
-        copy.setStartDate(null);
-        copy.setEndDate(null);
-        copy.setDurationType(null);
-        copy.setDurationValue(null);
-
-        copy.setSubjects(original.getSubjects() != null
-                ? new ArrayList<>(original.getSubjects())
-                : new ArrayList<>());
-
-        copy.setLearningModes(original.getLearningModes() != null
-                ? new HashSet<>(original.getLearningModes())
-                : new HashSet<>());
-
+        copy.setSubjects(new ArrayList<>(original.getSubjects()));
+        copy.setLearningModes(new HashSet<>(original.getLearningModes()));
         copy.setStatus(OpenClass.ClassStatus.OPEN);
         copy.setVisibilityStatus(OpenClass.VisibilityStatus.PUBLIC);
 
         OpenClass saved = openClassRepository.save(copy);
-
         if (original.getDayTimeSlots() != null) {
-
             List<DayTimeSlot> slots = original.getDayTimeSlots().stream()
-                    .map(s -> DayTimeSlot.builder()
-                            .day(s.getDay())
-                            .startTime(s.getStartTime())
-                            .endTime(s.getEndTime())
-                            .maxStudents(s.getMaxStudents())
-                            .bookedCount(0)
-                            .openClass(saved)
-                            .build())
+                    .map(s -> DayTimeSlot.builder().day(s.getDay()).startTime(s.getStartTime()).endTime(s.getEndTime()).maxStudents(s.getMaxStudents()).bookedCount(0).openClass(saved).build())
                     .toList();
-
             dayTimeSlotRepository.saveAll(slots);
             saved.setDayTimeSlots(slots);
         }
-
         return mapToResponse(saved);
     }
 
     // =========================================================
-    // MAPPER
-    // =========================================================
-
-    private OpenClassResponse mapToResponse(OpenClass e) {
-
-        long confirmedCount = openClassRepository.countConfirmedStudentsByClassId(e.getId());
-
-        return OpenClassResponse.builder()
-                .classId(e.getId())
-                .title(e.getTitle())
-                .description(e.getDescription())
-                .classImage(e.getClassImage())
-
-                .status(e.getStatus() != null ? e.getStatus().name() : null)
-                .visibilityStatus(e.getVisibilityStatus() != null ? e.getVisibilityStatus().name() : null)
-
-                // ================= DURATION =================
-                .startDate(e.getStartDate())
-                .endDate(e.getEndDate())
-                .durationType(e.getDurationType())
-                .durationValue(e.getDurationValue())
-
-                // tutor
-                .tutor(OpenClassResponse.TutorPublicResponse.builder()
-                        .tutorId(e.getTutor().getId())
-                        .name(e.getTutor().getUser().getFullname())
-                        .avatar(e.getTutor().getUser().getAvatarUrl())
-                        .rating(e.getTutor().getAverageRating())
-                        .email(e.getTutor().getUser().getEmail())
-                        .phone(e.getTutor().getUser().getPhone())
-                        .build())
-
-                .location(e.getLocation().getDistrict() + ", " + e.getLocation().getCity())
-                .specificAddress(e.getSpecificAddress())
-
-                .subjects(e.getSubjects() != null
-                        ? e.getSubjects().stream().map(Subject::getName).toList()
-                        : List.of())
-
-                .learningModes(e.getLearningModes() != null
-                        ? e.getLearningModes().stream().map(Enum::name).collect(Collectors.toSet())
-                        : Set.of())
-
-                .basePrice(e.getBasePrice())
-                .maxStudents(e.getMaxStudents())
-                .currentStudents((int) confirmedCount)
-
-                .schedules(e.getDayTimeSlots() != null
-                        ? e.getDayTimeSlots().stream().map(this::mapSlot).toList()
-                        : List.of())
-
-                .isNew(e.isNew())
-
-                .build();
-    }
-
-    private OpenClassResponse.DayTimeSlotResponse mapSlot(DayTimeSlot s) {
-        return OpenClassResponse.DayTimeSlotResponse.builder()
-                .id(s.getId())
-                .day(s.getDay())
-                .startTime(s.getStartTime())
-                .endTime(s.getEndTime())
-                .maxStudents(s.getMaxStudents())
-                .bookedCount(s.getBookedCount())
-                .build();
-    }
-
-    // =========================================================
-    // SECURITY
+    // 🔐 INTERNAL UTILS
     // =========================================================
 
     private void checkOwner(OpenClass entity) {
         Tutor tutor = getCurrentTutor();
-        if (!entity.getTutor().getId().equals(tutor.getId())) {
-            throw new RuntimeException("Unauthorized");
-        }
+        if (!entity.getTutor().getId().equals(tutor.getId())) throw new RuntimeException("Unauthorized: You do not own this class.");
     }
 
     private Tutor getCurrentTutor() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return tutorRepository.findByUserEmail(email)
-                .orElseThrow(() -> new RuntimeException("Tutor not found"));
-    }
-
-    // =========================================================
-    // FILTER
-    // =========================================================
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<OpenClassResponse> filterOpenClasses(String location, String subject) {
-        return openClassRepository.findAll(
-                        OpenClassSpecification.filter(location, subject)
-                ).stream()
-                .map(this::mapToResponse)
-                .toList();
+        return tutorRepository.findByUserEmail(email).orElseThrow(() -> new RuntimeException("Tutor record not found."));
     }
 }
