@@ -71,7 +71,7 @@ public class SecurityConfiguration {
                         // ================= PUBLIC STATIC =================
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/v1/locations/**").permitAll()
-                        .requestMatchers("/api/subjects/**").permitAll()
+                        .requestMatchers("/api/v1/subjects/**").permitAll()
 
                         // ================= OPEN CLASS PUBLIC APIs =================
                         .requestMatchers(HttpMethod.GET, "/api/v1/open-classes/public").permitAll()
